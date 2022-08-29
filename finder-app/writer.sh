@@ -9,7 +9,7 @@ fi
 writefile=$1
 writestr=$2
 
-if [ ! -f "$writefile" ]
+if [ ! -d ${writefile%/*} ]
 then
 	mkdir -p ${writefile%/*}
 fi

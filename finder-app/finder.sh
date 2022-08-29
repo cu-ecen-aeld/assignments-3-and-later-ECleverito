@@ -15,7 +15,7 @@ then
 	exit 1
 fi
 
-numFiles=$(ls -Rl "$filesdir" | wc -l)
+numFiles=$(find "$filesdir" -type f | wc -l)
 numStr=$(grep -r "$searchstr" "$filesdir" | wc -l)
 
 echo "The number of files are $numFiles and the number of matching lines\

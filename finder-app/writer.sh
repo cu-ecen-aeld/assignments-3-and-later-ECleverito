@@ -21,3 +21,5 @@ then
 	echo "File could not be created"
 	exit 1
 fi
+
+exit 0

@@ -19,6 +19,6 @@ void test_validate_my_username()
 	char * scrapedUname = malloc_username_from_conf_file();       
 	
 	TEST_ASSERT_EQUAL_STRING(expectedUname, scrapedUname);
-	//test
+	//test-2
 
 }

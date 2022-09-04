@@ -15,13 +15,18 @@ extern int errno;
 
 int myWriter(const char *writefile, const char *writestr)
 {
+	openlog("writer", LOG_USER, LOG_USER);
+	
 	int fd;
 
 	fd = creat(writefile, S_IRWXU | S_IRGRP | S_IROTH);
 
 	if(fd < 0)
 	{
-		fprintf(stderr, "Error opening/creating file: %s\n", strerror(errno));
+		syslog(LOG_ERR, "Error opening/creating file: %s\n", strerror(errno));
+		syslog(LOG_INFO, "NOTE: Desired folder path of writefile must"
+				" already exist.");
+		closelog();
 		return 1;
 	}
 
@@ -32,23 +37,28 @@ int myWriter(const char *writefile, const char *writestr)
 
 	if(bytes_wrote < 0)
 	{
-		fprintf(stderr, "Error writing to file: %s\n", strerror(errno));
+		syslog(LOG_ERR, "Error writing to file: %s\n", strerror(errno));
+		closelog();
 		return 1;
 	}
 	else if(bytes_wrote != writestr_len)
 	{
-		fprintf(stderr, "Error writing to file: Not all of the string \
+		syslog(LOG_ERR, "Error writing to file: Not all of the string \
 				to be written was written to the file.\n");
+		closelog();
 		return 1;
 	}
 
+
+	syslog(LOG_DEBUG, "Writing %s to %s", writestr, writefile);
+	closelog();
 	return 0;
 
 }
 
 int main(int argc, char* argv[])
 {
-	openlog("writer",LOG_USER,LOG_USER);	
+	openlog("writer", LOG_USER, LOG_USER);	
 	
 	if(argc != 3)
 	{

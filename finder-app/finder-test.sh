@@ -1,6 +1,8 @@
 #!/bin/sh
 # Tester script for assignment 1 and assignment 2
 # Author: Siddhant Jajoo
+# Modified by Erich Clever for Assignment 2 of AESD
+# CU Boulder Fall 2022 on 9/4/2022
 
 set -e
 set -u
@@ -42,12 +44,12 @@ else
 fi
 
 #echo "Removing the old writer utility and compiling as a native application"
-#make clean
-#make
+make clean
+make
 
 for i in $( seq 1 $NUMFILES)
 do
-	./writer.sh "$WRITEDIR/${username}$i.txt" "$WRITESTR"
+	./writer "$WRITEDIR/${username}$i.txt" "$WRITESTR"
 done
 
 OUTPUTSTRING=$(./finder.sh "$WRITEDIR" "$WRITESTR")

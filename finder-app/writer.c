@@ -24,8 +24,12 @@ int myWriter(const char *writefile, const char *writestr)
 	if(fd < 0)
 	{
 		syslog(LOG_ERR, "Error opening/creating file: %s\n", strerror(errno));
-		syslog(LOG_INFO, "NOTE: Desired folder path of writefile must"
-				" already exist.");
+		
+		const char *usageTipStr = "NOTE: Desired folder path of writefile must"
+					" already exist.";
+
+		printf("%s",usageTipStr);
+		syslog(LOG_INFO, "%s", usageTipStr);
 		closelog();
 		return 1;
 	}
@@ -35,6 +39,8 @@ int myWriter(const char *writefile, const char *writestr)
 
 	bytes_wrote = write(fd, writestr, writestr_len);
 
+	//Check to ensure entirety of writestr was written
+	//to writefile
 	if(bytes_wrote < 0)
 	{
 		syslog(LOG_ERR, "Error writing to file: %s\n", strerror(errno));
@@ -49,7 +55,6 @@ int myWriter(const char *writefile, const char *writestr)
 		return 1;
 	}
 
-
 	syslog(LOG_DEBUG, "Writing %s to %s", writestr, writefile);
 	closelog();
 	return 0;
@@ -59,14 +64,16 @@ int myWriter(const char *writefile, const char *writestr)
 int main(int argc, char* argv[])
 {
 	openlog("writer", LOG_USER, LOG_USER);	
-	
+
+	//Check for correct number of arguments and provide usage information	
 	if(argc != 3)
 	{
 		const char* usageErrStr = "Insufficient number of arguments provided."
 						 " 2 are required.\n\n";
 
 		const char* correctUsageStr ="USAGE: write $1 $2\n\n"
-				"$1 = writefile (file which is to be overwritten)\n"
+				"$1 = writefile (file which is to be overwritten or "
+				"created)\n"
 				"$2 = writetext (new contents of the file)\n\n";
 
 		fprintf(stderr, "%s", usageErrStr);
@@ -81,6 +88,5 @@ int main(int argc, char* argv[])
 	}	
 	
 	closelog();
-
 	return myWriter(argv[1], argv[2]);
 }

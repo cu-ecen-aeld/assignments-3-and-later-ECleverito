@@ -6,6 +6,7 @@
 #include <unistd.h>
 
 #include <errno.h>
+#include <syslog.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -47,11 +48,29 @@ int myWriter(const char *writefile, const char *writestr)
 
 int main(int argc, char* argv[])
 {
+	openlog("writer",LOG_USER,LOG_USER);	
+	
 	if(argc != 3)
 	{
-		fprintf(stderr,"Incorrect number of arguments provided: %i.\n",(argc-1));
+		const char* usageErrStr = "Insufficient number of arguments provided."
+						 " 2 are required.\n\n";
+
+		const char* correctUsageStr ="USAGE: write $1 $2\n\n"
+				"$1 = writefile (file which is to be overwritten)\n"
+				"$2 = writetext (new contents of the file)\n\n";
+
+		fprintf(stderr, "%s", usageErrStr);
+		printf("%s", correctUsageStr);
+
+		syslog(LOG_ERR, "%s", usageErrStr);
+		syslog(LOG_INFO, "%s", correctUsageStr);
+
+		closelog();
+
 		return 1;
 	}	
+	
+	closelog();
 
 	return myWriter(argv[1], argv[2]);
 }

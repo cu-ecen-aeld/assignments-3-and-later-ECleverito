@@ -37,7 +37,7 @@ int myWriter(const char *writefile, const char *writestr)
 	else if(bytes_wrote != writestr_len)
 	{
 		fprintf(stderr, "Error writing to file: Not all of the string \
-				to be written was written to the file./n");
+				to be written was written to the file.\n");
 		return 1;
 	}
 
@@ -45,9 +45,13 @@ int myWriter(const char *writefile, const char *writestr)
 
 }
 
-int main()
+int main(int argc, char* argv[])
 {
+	if(argc != 3)
+	{
+		fprintf(stderr,"Incorrect number of arguments provided: %i.\n",(argc-1));
+		return 1;
+	}	
 
-
-	return 0;
+	return myWriter(argv[1], argv[2]);
 }

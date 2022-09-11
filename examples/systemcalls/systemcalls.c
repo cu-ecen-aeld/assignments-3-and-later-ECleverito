@@ -1,5 +1,11 @@
 #include "systemcalls.h"
 
+#include <unistd.h>
+#include <stdlib.h>
+
+#include <sys/types.h>
+#include <sys/wait.h>
+
 /**
  * @param cmd the command to execute with system()
  * @return true if the command in @param cmd was executed
@@ -10,14 +16,21 @@
 bool do_system(const char *cmd)
 {
 
-/*
- * TODO  add your code here
- *  Call the system() function with the command set in the cmd
- *   and return a boolean true if the system() call completed with success
- *   or false() if it returned a failure
-*/
+	int wstatus;
 
-    return true;
+	if(system(cmd) > 0)
+	{
+
+		wait(&wstatus);
+
+		if( WIFEXITED(wstatus) && (WEXITSTATUS(wstatus) == EXIT_SUCCESS) )
+		{
+			return true;
+		}
+
+	}
+
+	return false;
 }
 
 /**
@@ -59,9 +72,32 @@ bool do_exec(int count, ...)
  *
 */
 
+    int pid = fork();
+
+    if(pid == -1)
+    {
+	return false;
+    }
+	
+    if(pid == 0)
+    {
+	execv(command[0], &command[1]);
+	exit(-1);
+    }
+
+    int wstatus;
+    waitpid(pid, &wstatus, 0);
+
     va_end(args);
 
-    return true;
+    if( WIFEXITED(wstatus) && (WEXITSTATUS(wstatus) == EXIT_SUCCESS) )
+    {
+	return true;
+    }
+    else
+    {
+    	return false;
+    }
 }
 
 /**

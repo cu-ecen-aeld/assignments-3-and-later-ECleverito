@@ -72,7 +72,7 @@ bool do_exec(int count, ...)
  *
 */
 
-    int pid = fork();
+    pid_t pid = fork();
 
     if(pid == -1)
     {
@@ -81,12 +81,15 @@ bool do_exec(int count, ...)
 	
     if(pid == 0)
     {
-	execv(command[0], &command[1]);
-	exit(-1);
+	execv(command[0], &command[0]);
+	return false;
     }
 
     int wstatus;
-    waitpid(pid, &wstatus, 0);
+    if(waitpid(pid, &wstatus, 0)==-1)
+    {
+	    return false;
+    }
 
     va_end(args);
 

@@ -1,5 +1,7 @@
 #include "systemcalls.h"
 
+#include <fcntl.h>
+
 #include <unistd.h>
 #include <stdlib.h>
 
@@ -132,7 +134,65 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *
 */
 
+    unsetenv("HOME");
+    	char *command_cpy[count + 1];	
+
+	i=0;
+	while(i < count)
+	{
+		if( command[i][0] != '>' )
+		{
+			command_cpy[i] = command[i];
+			i++;
+		}	
+		else
+		{
+			command_cpy[i] = NULL;
+			break;
+		}
+	}
+
+
+	int fd = creat(command[i+1],0644);
+	if(fd<0)
+	{
+		return false;
+	}
+
+    pid_t pid = fork();
+
+    if(pid == -1)
+    {
+	return false;
+    }
+	
+    if(pid == 0)
+    {
+    	if(dup2(fd, 1) < 0)
+	{
+		return false;
+	}
+	close(fd);
+	    execv(command_cpy[0], &command_cpy[0]);
+	return false;
+    }
+	close(fd);
+    int wstatus;
+    if(waitpid(pid, &wstatus, 0)==-1)
+    {
+	    return false;
+    }
+
     va_end(args);
+
+    if( WIFEXITED(wstatus) && (WEXITSTATUS(wstatus) == EXIT_SUCCESS) )
+    {
+	return true;
+    }
+    else
+    {
+    	return false;
+    }
 
     return true;
 }

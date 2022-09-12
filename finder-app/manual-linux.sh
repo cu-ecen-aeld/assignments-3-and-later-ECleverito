@@ -44,6 +44,7 @@ if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
 fi
 
 echo "Adding the Image in outdir"
+cp -r ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ${OUTDIR}
 
 echo "Creating the staging directory for the root filesystem"
 cd "$OUTDIR"
@@ -76,7 +77,9 @@ else
 fi
 
 # TODO: Make and install busybox
-sudo make ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE)install
+sudo "PATH=$PATH" make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} CONFIG_PREFIX=${OUTDIR}/rootfs install
+
+cd ${OUTDIR}/rootfs
 
 echo "Library dependencies"
 ${CROSS_COMPILE}readelf -a bin/busybox | grep "program interpreter"
@@ -85,12 +88,29 @@ ${CROSS_COMPILE}readelf -a bin/busybox | grep "Shared library"
 # TODO: Add library dependencies to rootfs
 SYSROOT=$(${CROSS_COMPILE}gcc -print-sysroot)
 
+cd ${OUTDIR}/rootfs
+sudo cp -a /${SYSROOT}/lib/ld-linux-aarch64.so.1 lib
+sudo cp -a /${SYSROOT}/lib64/ld-2.31.so lib
+sudo cp -a /${SYSROOT}/lib64/libm.so.6 lib
+sudo cp -a /${SYSROOT}/lib64/libm-2.31.so lib
+sudo cp -a /${SYSROOT}/lib64/libresolv.so.2 lib
+sudo cp -a /${SYSROOT}/lib64/libresolv-2.31.so lib
+sudo cp -a /${SYSROOT}/lib64/libc.so.6 lib
+sudo cp -a /${SYSROOT}/lib64/libc-2.31.so lib
+
 # TODO: Make device nodes
 cd ${OUTDIR}/rootfs
 sudo mknod -m 666 dev/null c 1 3
 sudo mknod -m 600 dev/console c 5 1
 
+sudo cp -r ~/AESD/assignments/3/assignment-3-ECleverito/finder-app ${OUTDIR}/rootfs/home
+
+cd ${OUTDIR}/rootfs/home/finder-app
+make clean
+sudo "PATH=$PATH" make CC=${CROSS_COMPILE}gcc writer
+
 # TODO: Clean and build the writer utility
+
 
 # TODO: Copy the finder related scripts and executables to the /home directory
 # on the target rootfs
@@ -103,4 +123,4 @@ cd ${OUTDIR}/rootfs
 find . | cpio -H newc -ov --owner root:root > ../initramfs.cpio
 cd ..
 gzip initramfs.cpio
-mkimage -A arm -O linux -T ramdisk -d initramfs.cpio.gx uRamdisk
+mkimage -A arm -O linux -T ramdisk -d initramfs.cpio.gz uRamdisk

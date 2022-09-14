@@ -1,5 +1,13 @@
 #include "systemcalls.h"
 
+#include <fcntl.h>
+
+#include <unistd.h>
+#include <stdlib.h>
+
+#include <sys/types.h>
+#include <sys/wait.h>
+
 /**
  * @param cmd the command to execute with system()
  * @return true if the command in @param cmd was executed
@@ -10,14 +18,21 @@
 bool do_system(const char *cmd)
 {
 
-/*
- * TODO  add your code here
- *  Call the system() function with the command set in the cmd
- *   and return a boolean true if the system() call completed with success
- *   or false() if it returned a failure
-*/
+	int wstatus;
 
-    return true;
+	if(system(cmd) > 0)
+	{
+
+		wait(&wstatus);
+
+		if( WIFEXITED(wstatus) && (WEXITSTATUS(wstatus) == EXIT_SUCCESS) )
+		{
+			return true;
+		}
+
+	}
+
+	return false;
 }
 
 /**
@@ -59,9 +74,35 @@ bool do_exec(int count, ...)
  *
 */
 
+    pid_t pid = fork();
+
+    if(pid == -1)
+    {
+	return false;
+    }
+	
+    if(pid == 0)
+    {
+	execv(command[0], &command[0]);
+	return false;
+    }
+
+    int wstatus;
+    if(waitpid(pid, &wstatus, 0)==-1)
+    {
+	    return false;
+    }
+
     va_end(args);
 
-    return true;
+    if( WIFEXITED(wstatus) && (WEXITSTATUS(wstatus) == EXIT_SUCCESS) )
+    {
+	return true;
+    }
+    else
+    {
+    	return false;
+    }
 }
 
 /**
@@ -93,7 +134,65 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *
 */
 
+    unsetenv("HOME");
+    	char *command_cpy[count + 1];	
+
+	i=0;
+	while(i < count)
+	{
+		if( command[i][0] != '>' )
+		{
+			command_cpy[i] = command[i];
+			i++;
+		}	
+		else
+		{
+			command_cpy[i] = NULL;
+			break;
+		}
+	}
+
+
+	int fd = creat(command[i+1],0644);
+	if(fd<0)
+	{
+		return false;
+	}
+
+    pid_t pid = fork();
+
+    if(pid == -1)
+    {
+	return false;
+    }
+	
+    if(pid == 0)
+    {
+    	if(dup2(fd, 1) < 0)
+	{
+		return false;
+	}
+	close(fd);
+	    execv(command_cpy[0], &command_cpy[0]);
+	return false;
+    }
+	close(fd);
+    int wstatus;
+    if(waitpid(pid, &wstatus, 0)==-1)
+    {
+	    return false;
+    }
+
     va_end(args);
+
+    if( WIFEXITED(wstatus) && (WEXITSTATUS(wstatus) == EXIT_SUCCESS) )
+    {
+	return true;
+    }
+    else
+    {
+    	return false;
+    }
 
     return true;
 }

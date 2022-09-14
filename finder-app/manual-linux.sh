@@ -116,6 +116,8 @@ sudo cp -r ../conf ${OUTDIR}/rootfs/home
 sudo cp finder-test.sh ${OUTDIR}/rootfs/home 
 sudo cp autorun-qemu.sh ${OUTDIR}/rootfs/home
 
+cd ${OUTDIR}/rootfs
+
 # TODO: Create initramfs.cpio.gz
 find . | cpio -H newc -ov --owner root:root > ../initramfs.cpio
 cd ..

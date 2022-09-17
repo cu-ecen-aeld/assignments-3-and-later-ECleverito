@@ -76,17 +76,20 @@ bool do_exec(int count, ...)
 
     pid_t pid = fork();
 
+    //In case child could not be created
     if(pid == -1)
     {
 	return false;
     }
 	
+    //Child will follow this section
     if(pid == 0)
     {
 	execv(command[0], &command[0]);
-	return false;
+	exit(-1);
     }
 
+    //Parent will follow this section
     int wstatus;
     if(waitpid(pid, &wstatus, 0)==-1)
     {
@@ -134,26 +137,8 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *
 */
 
-    unsetenv("HOME");
-    	char *command_cpy[count + 1];	
 
-	i=0;
-	while(i < count)
-	{
-		if( command[i][0] != '>' )
-		{
-			command_cpy[i] = command[i];
-			i++;
-		}	
-		else
-		{
-			command_cpy[i] = NULL;
-			break;
-		}
-	}
-
-
-	int fd = creat(command[i+1],0644);
+	int fd = creat(outputfile,0644);
 	if(fd<0)
 	{
 		return false;
@@ -173,7 +158,7 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
 		return false;
 	}
 	close(fd);
-	    execv(command_cpy[0], &command_cpy[0]);
+	execv(command[0], command);
 	return false;
     }
 	close(fd);

@@ -159,7 +159,7 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
 	}
 	close(fd);
 	execv(command[0], command);
-	return false;
+	exit(-1);
     }
 	close(fd);
     int wstatus;

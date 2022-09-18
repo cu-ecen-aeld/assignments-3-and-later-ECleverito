@@ -51,6 +51,9 @@ done
 
 OUTPUTSTRING=$(finder.sh "$WRITEDIR" "$WRITESTR")
 
+#File creation using output of finder.sh, as specified for Assignment 4 deliverables
+finder.sh ./ writer > /tmp/assignment4-result.txt
+
 set +e
 echo ${OUTPUTSTRING} | grep "${MATCHSTR}"
 if [ $? -eq 0 ]; then

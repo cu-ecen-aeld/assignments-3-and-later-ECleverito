@@ -60,9 +60,9 @@ int main()
 
     syslog(LOG_INFO, "Accepted connection from %s", peeraddr.sa_data);
 
-    int fd = creat(OUTPUT_FILEPATH, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+    int outputFd = open(OUTPUT_FILEPATH, O_TRUNC | O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 
-    if(fd==-1)
+    if(outputFd==-1)
     {
         perror("creat() error");
         return -1;
@@ -70,12 +70,17 @@ int main()
 
     //Receive a single byte at a time
     char recvdByte;
-    int totalByteCnt, pktByteCnt = 0;
+    int totalByteCnt = 0;
+    int pktByteCnt = 0;
+
+    char retByte;
+    ssize_t sendRet;
+    ssize_t readRet;
 
     while(recv(connectedSock, &recvdByte, 1, 0)!=0)
     {
         
-        while(write(fd, &recvdByte, 1)!=1)
+        while(write(outputFd, &recvdByte, 1)!=1)
             ;
 
         pktByteCnt++;
@@ -85,16 +90,51 @@ int main()
         //the peer for every packet received
         if(recvdByte=='\n')
         {
-            pktByteCnt=0;
-            //COMPLETE LATER
+
+            if(lseek(outputFd, 0, SEEK_SET)==-1)
+            {
+                perror("lseek() error in returning socket input"
+                    "to peer");
+                    return -1;
+            }
+
+            for(int i=0;i<totalByteCnt;i++)
+            {
+                do
+                {
+                    readRet=read(outputFd, &retByte, 1);
+                    if(readRet==-1)
+                    {
+                        perror("read() error in returning socket"
+                            "input to peer");
+                        return -1;
+                    }
+
+                } while (readRet!=1);
+                
+                do
+                {
+                    sendRet=send(connectedSock, &retByte, 1, 0);
+                    if(sendRet==-1)
+                    {
+                        perror("send() error in returning socket"
+                            "input to peer");
+                        return -1;
+                    }
+                } while (sendRet!=1);
+
+            }
+            
         }
         
     }
 
     syslog(LOG_INFO, "Closed connection from %s", peeraddr.sa_data);
-
+    close(outputFd);
     closelog();
 
     freeaddrinfo(sockaddr);
+
+    return 0;
 
 }

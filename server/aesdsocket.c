@@ -1,6 +1,7 @@
 
 #include "aesdsocket.h"
 
+#include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
@@ -12,16 +13,63 @@
 #include <syslog.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <signal.h>
+
+struct addrinfo *sockaddr;
+
+void SIG_handler(int SIG_val)
+{
+
+    freeaddrinfo(sockaddr);
+
+    if(unlink(OUTPUT_FILEPATH)==-1)
+    {
+        if(errno==ENOENT)
+        {
+            syslog(LOG_INFO, "Output file had not been created yet");
+        }
+    }
+
+    syslog(LOG_INFO, "Caught signal, exiting");
+    closelog();
+    exit(0);
+
+}
 
 int main()
 {
-    //
-    struct addrinfo hints, *sockaddr;
+    struct sigaction SIGS_action;
+    SIGS_action.sa_handler = &SIG_handler;
+    sigemptyset(&SIGS_action.sa_mask);
+    SIGS_action.sa_flags = 0;
 
+    sigaction(SIGTERM, &SIGS_action, NULL);
+    sigaction(SIGINT, &SIGS_action, NULL);
+
+    int sockfd = createStreamSocket(SERVER_PORT);
+    if(sockfd==-1)
+    {
+        freeaddrinfo(sockaddr);
+        return -1;
+    }
+
+    openlog("aesdsocket", 0, LOG_USER);
+
+    while(listenAndLog(sockfd)==0)
+        ;
+
+    return -1;
+
+}
+
+//Remember to perform freeaddrinfo() on sockaddr after calling this
+int createStreamSocket(const char *portNumberStr)
+{
+    struct addrinfo hints;
     memset(&hints, 0, sizeof(hints));
     hints.ai_flags = AI_PASSIVE;
 
-    if(getaddrinfo(NULL, "9000", &hints, &sockaddr)!=0)
+    if(getaddrinfo(NULL, portNumberStr, &hints, &sockaddr)!=0)
     {
         perror("getaddrinfo() error:");
         return -1;
@@ -31,6 +79,12 @@ int main()
     if(sockfd==-1)
     {
         perror("socket() error");
+        return -1;
+    }
+
+    if(setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int))==-1)
+    {
+        perror("setsockopt() error");
         return -1;
     }
 
@@ -46,6 +100,13 @@ int main()
         return -1;
     }
 
+    return sockfd;
+
+}
+
+int listenAndLog(int sockfd)
+{
+
     struct sockaddr peeraddr;
     socklen_t peer_addr_size = sizeof(peeraddr);
     
@@ -56,9 +117,11 @@ int main()
         return -1;
     }
 
-    openlog("aesdsocket", 0, LOG_USER);
+    struct sockaddr_in *peeraddr_in;
+    peeraddr_in = (struct sockaddr_in *)(&peeraddr);
 
-    syslog(LOG_INFO, "Accepted connection from %s", peeraddr.sa_data);
+    printf("Peer address: %x", peeraddr_in->sin_addr.s_addr);
+    syslog(LOG_INFO, "Accepted connection from %x", peeraddr_in->sin_addr.s_addr);
 
     int outputFd = open(OUTPUT_FILEPATH, O_TRUNC | O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 
@@ -131,10 +194,6 @@ int main()
 
     syslog(LOG_INFO, "Closed connection from %s", peeraddr.sa_data);
     close(outputFd);
-    closelog();
-
-    freeaddrinfo(sockaddr);
 
     return 0;
-
 }

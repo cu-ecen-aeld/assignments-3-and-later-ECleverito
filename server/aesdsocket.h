@@ -9,3 +9,4 @@ const char SERVER_PORT[] = "9000";
 int createStreamSocket(const char *portNumberStr);
 int listenAndLog(int sockfd);
 int checkInput(int argc, char *argv[]);
+int graceful_exit(int returnVal);

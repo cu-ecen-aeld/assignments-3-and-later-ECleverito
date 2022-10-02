@@ -16,13 +16,10 @@
 #include <unistd.h>
 #include <signal.h>
 
-struct addrinfo *sockaddr;
+struct addrinfo *sockaddr = NULL;
 
 void SIG_handler(int SIG_val)
 {
-
-    freeaddrinfo(sockaddr);
-
     if(unlink(OUTPUT_FILEPATH)==-1)
     {
         if(errno==ENOENT)
@@ -32,7 +29,7 @@ void SIG_handler(int SIG_val)
     }
 
     syslog(LOG_INFO, "Caught signal, exiting");
-    closelog();
+    graceful_exit(0);
     exit(0);
 
 }
@@ -63,9 +60,7 @@ int main(int argc, char *argv[])
     int sockfd = createStreamSocket(SERVER_PORT);
     if(sockfd==-1)
     {
-        freeaddrinfo(sockaddr);
-        closelog();
-        return -1;
+        return graceful_exit(-1);
     }
 
     if(daemonFlag)
@@ -74,21 +69,19 @@ int main(int argc, char *argv[])
         if(pid==-1)
         {
             perror("fork() error:");
-            return -1;
+            return graceful_exit(-1);
         }
         //End parent process
         if(pid!=0)
         {
-            return 0;
+            return graceful_exit(0);
         }
     }
 
     while(listenAndLog(sockfd)==0)
         ;
 
-    freeaddrinfo(sockaddr);
-    closelog();
-    return -1;
+    return graceful_exit(-1);
 
 }
 
@@ -268,4 +261,11 @@ int checkInput(int argc, char *argv[])
 
     return 0;
 
+}
+
+int graceful_exit(int returnVal)
+{
+    freeaddrinfo(sockaddr);
+    closelog();
+    return returnVal;
 }

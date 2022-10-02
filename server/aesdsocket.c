@@ -181,6 +181,7 @@ int listenAndLog(int sockfd)
             {
                 perror("lseek() error in returning socket input"
                     "to peer");
+                    close(outputFd);
                     return -1;
             }
 
@@ -193,6 +194,7 @@ int listenAndLog(int sockfd)
                     {
                         perror("read() error in returning socket"
                             "input to peer");
+                        close(outputFd);
                         return -1;
                     }
 
@@ -205,6 +207,7 @@ int listenAndLog(int sockfd)
                     {
                         perror("send() error in returning socket"
                             "input to peer");
+                        close(outputFd);
                         return -1;
                     }
                 } while (sendRet!=1);

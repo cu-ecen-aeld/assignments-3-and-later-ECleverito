@@ -85,9 +85,10 @@ int main(int argc, char *argv[])
 
 }
 
-//Remember to perform freeaddrinfo() on sockaddr after calling this
 int createStreamSocket(const char *portNumberStr)
 {
+    //Create addrinfo struct for creating TCP stream
+    //socket
     struct addrinfo hints;
     memset(&hints, 0, sizeof(hints));
     hints.ai_flags = AI_PASSIVE;
@@ -140,12 +141,14 @@ int listenAndLog(int sockfd)
         return -1;
     }
 
+    //Determine IP address of client for logging
     struct sockaddr_in *peeraddr_in;
     peeraddr_in = (struct sockaddr_in *)(&peeraddr);
     const char *ipv4Addr = (char *)(&peeraddr_in->sin_addr.s_addr);
 
     syslog(LOG_INFO, "Accepted connection from %d.%d.%d.%d", ipv4Addr[0], ipv4Addr[1], ipv4Addr[2], ipv4Addr[3]);
 
+    //Open output file to append to or create if it does not already exist
     int outputFd = open(OUTPUT_FILEPATH, O_RDWR | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 
     if(outputFd==-1)
@@ -163,6 +166,7 @@ int listenAndLog(int sockfd)
     ssize_t sendRet;
     ssize_t readRet;
 
+    //Append each byte received to the output file
     while(recv(connectedSock, &recvdByte, 1, 0)!=0)
     {
         

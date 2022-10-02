@@ -36,8 +36,9 @@ void SIG_handler(int SIG_val)
 
 }
 
-int main()
+int main(int argc, char *argv[])
 {
+
     struct sigaction SIGS_action;
     SIGS_action.sa_handler = &SIG_handler;
     sigemptyset(&SIGS_action.sa_mask);
@@ -119,9 +120,9 @@ int listenAndLog(int sockfd)
 
     struct sockaddr_in *peeraddr_in;
     peeraddr_in = (struct sockaddr_in *)(&peeraddr);
+    const char *ipv4Addr = (char *)(&peeraddr_in->sin_addr.s_addr);
 
-    printf("Peer address: %x", peeraddr_in->sin_addr.s_addr);
-    syslog(LOG_INFO, "Accepted connection from %x", peeraddr_in->sin_addr.s_addr);
+    syslog(LOG_INFO, "Accepted connection from %d.%d.%d.%d", ipv4Addr[0], ipv4Addr[1], ipv4Addr[2], ipv4Addr[3]);
 
     int outputFd = open(OUTPUT_FILEPATH, O_TRUNC | O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 
@@ -173,7 +174,7 @@ int listenAndLog(int sockfd)
                         return -1;
                     }
 
-                } while (readRet!=1);
+                } while (rea%s", peeraddr.sa_data);dRet!=1);
                 
                 do
                 {
@@ -192,7 +193,7 @@ int listenAndLog(int sockfd)
         
     }
 
-    syslog(LOG_INFO, "Closed connection from %s", peeraddr.sa_data);
+    syslog(LOG_INFO, "Closed connection from %d.%d.%d.%d", ipv4Addr[0], ipv4Addr[1], ipv4Addr[2], ipv4Addr[3]);
     close(outputFd);
 
     return 0;

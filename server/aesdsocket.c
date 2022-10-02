@@ -153,7 +153,7 @@ int listenAndLog(int sockfd)
 
     syslog(LOG_INFO, "Accepted connection from %d.%d.%d.%d", ipv4Addr[0], ipv4Addr[1], ipv4Addr[2], ipv4Addr[3]);
 
-    int outputFd = open(OUTPUT_FILEPATH, O_TRUNC | O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+    int outputFd = open(OUTPUT_FILEPATH, O_RDWR | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 
     if(outputFd==-1)
     {
@@ -163,7 +163,7 @@ int listenAndLog(int sockfd)
 
     //Receive a single byte at a time
     char recvdByte;
-    int totalByteCnt = 0;
+    static int totalByteCnt = 0;
     int pktByteCnt = 0;
 
     char retByte;

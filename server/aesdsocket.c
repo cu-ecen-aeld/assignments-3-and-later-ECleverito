@@ -160,7 +160,6 @@ int listenAndLog(int sockfd)
     //Receive a single byte at a time
     char recvdByte;
     static int totalByteCnt = 0;
-    int pktByteCnt = 0;
 
     char retByte;
     ssize_t sendRet;
@@ -173,7 +172,6 @@ int listenAndLog(int sockfd)
         while(write(outputFd, &recvdByte, 1)!=1)
             ;
 
-        pktByteCnt++;
         totalByteCnt++;
 
         //Output contents of output file to

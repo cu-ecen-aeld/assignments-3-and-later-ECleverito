@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
+#include <stdbool.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -38,12 +39,24 @@ void SIG_handler(int SIG_val)
 
 int main(int argc, char *argv[])
 {
+    openlog("aesdsocket", 0, LOG_USER);
 
+    bool daemonFlag = false;
+    //Check for correct number of arguments and provide usage information
+    if(argc > 1)
+    {
+        if(checkInput(argc,argv)!=0)
+        {
+            return -1;
+        }
+        daemonFlag = true;
+    }
+
+    //Set up signal-handling
     struct sigaction SIGS_action;
     SIGS_action.sa_handler = &SIG_handler;
     sigemptyset(&SIGS_action.sa_mask);
     SIGS_action.sa_flags = 0;
-
     sigaction(SIGTERM, &SIGS_action, NULL);
     sigaction(SIGINT, &SIGS_action, NULL);
 
@@ -51,14 +64,30 @@ int main(int argc, char *argv[])
     if(sockfd==-1)
     {
         freeaddrinfo(sockaddr);
+        closelog();
         return -1;
     }
 
-    openlog("aesdsocket", 0, LOG_USER);
+    if(daemonFlag)
+    {
+        int pid = fork();
+        if(pid==-1)
+        {
+            perror("fork() error:");
+            return -1;
+        }
+        //End parent process
+        if(pid!=0)
+        {
+            return -1;
+        }
+    }
 
     while(listenAndLog(sockfd)==0)
         ;
 
+    freeaddrinfo(sockaddr);
+    closelog();
     return -1;
 
 }
@@ -174,7 +203,7 @@ int listenAndLog(int sockfd)
                         return -1;
                     }
 
-                } while (rea%s", peeraddr.sa_data);dRet!=1);
+                } while (readRet!=1);
                 
                 do
                 {
@@ -197,4 +226,46 @@ int listenAndLog(int sockfd)
     close(outputFd);
 
     return 0;
+}
+
+int checkInput(int argc, char *argv[])
+{
+
+    if(argc > 2)
+	{
+		const char* usageErrStr = "Invalid number of options provided.\n\n";
+
+		const char* correctUsageStr ="USAGE: The only available option is -d, "
+                        "which runs aesdsocket as a daemon\n\n";
+
+		fprintf(stderr, "%s", usageErrStr);
+		printf("%s", correctUsageStr);
+
+		syslog(LOG_ERR, "%s", usageErrStr);
+		syslog(LOG_INFO, "%s", correctUsageStr);
+
+		closelog();
+
+		return -1;
+	}
+    else if(argc == 2 && (strcmp(argv[1],"-d")!=0))
+    {
+        const char* usageErrStr = "Invalid option provided.\n\n";
+
+        const char* correctUsageStr ="USAGE: The only available option is -d, "
+                        "which runs aesdsocket as a daemon\n\n";
+
+        fprintf(stderr, "%s", usageErrStr);
+        printf("%s", correctUsageStr);
+
+        syslog(LOG_ERR, "%s", usageErrStr);
+        syslog(LOG_INFO, "%s", correctUsageStr);
+
+        closelog();
+
+        return -1;
+    }	
+
+    return 0;
+
 }

@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
         //End parent process
         if(pid!=0)
         {
-            return -1;
+            return 0;
         }
     }
 

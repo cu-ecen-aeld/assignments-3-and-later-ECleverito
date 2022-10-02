@@ -91,6 +91,8 @@ int createStreamSocket(const char *portNumberStr)
     //socket
     struct addrinfo hints;
     memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
 
     if(getaddrinfo(NULL, portNumberStr, &hints, &sockaddr)!=0)
@@ -99,7 +101,7 @@ int createStreamSocket(const char *portNumberStr)
         return -1;
     }
 
-    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    int sockfd = socket(sockaddr->ai_family, sockaddr->ai_socktype, sockaddr->ai_protocol);
     if(sockfd==-1)
     {
         perror("socket() error");

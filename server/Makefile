@@ -1,7 +1,7 @@
 CROSS_COMPILER=
 CC=${CROSS_COMPILER}gcc
 
-CCFLAGS=-Werror -Wall -O0 -g
+CCFLAGS=-Werror -Wall -O0 -g -pthread
 
 all: aesdsocket
 

@@ -17,6 +17,7 @@
 #include <signal.h>
 
 struct addrinfo *sockaddr = NULL;
+SLIST_HEAD(slisthead, socket_data_t) head;
 
 void SIG_handler(int SIG_val)
 {
@@ -78,8 +79,27 @@ int main(int argc, char *argv[])
         }
     }
 
-    while(listenAndLog(sockfd)==0)
-        ;
+    SLIST_INIT(&head);
+
+    socket_data_t *newListElement = NULL;
+    socket_data_t *listSearchp = NULL;
+
+    while(listenForConnections(sockfd, newListElement)==0)
+    {
+        SLIST_INSERT_HEAD(&head, newListElement, entries);
+
+        //Check list for completed threads
+        SLIST_FOREACH_SAFE(listSearchp, &head, entries)
+        {
+            if(listSearchp->threadCompleteFlag)
+            {
+                pthread_join(listSearchp->threadHandle);
+                free(listSearchp);
+                SLIST_REMOVE(&head, listSearchp, socket_data_s, entries);
+            }
+        }
+
+    }
 
     return graceful_exit(-1);
 
@@ -130,33 +150,60 @@ int createStreamSocket(const char *portNumberStr)
 
 }
 
-int listenAndLog(int sockfd)
+int listenForConnections(int sockfd, socket_data_t *newListElement)
 {
-
     struct sockaddr peeraddr;
     socklen_t peer_addr_size = sizeof(peeraddr);
     
     int connectedSock = accept(sockfd, &peeraddr, &peer_addr_size);
     if(connectedSock==-1)
     {
-        perror("listen() error");
+        perror("accept() error");
         return -1;
     }
 
+    newListElement = (socket_data_t *)malloc(sizeof(socket_data_t));
+
+    if(newListElement==NULL)
+    {
+        return 0;
+    }
+
+    //Initialize arguments to be used by thread
+    newListElement->connectedSock = connectedSock;
+    newListElement->peeraddr = peeraddr;
+    newListElement->threadCompleteFlag = false;
+
+    if(pthread_create(&newListElement->threadHandle, NULL,\
+                    recvAndSendAndLog, newListElement) != 0)
+    {
+        perror("pthread_create() error");
+        free(newListElement);
+        return -1;
+    }
+
+    return 0;
+}
+
+void* recvAndSendAndLog(void* socket_data)
+{
     //Determine IP address of client for logging
     struct sockaddr_in *peeraddr_in;
-    peeraddr_in = (struct sockaddr_in *)(&peeraddr);
+    peeraddr_in = (struct sockaddr_in *)(&socket_data->peeraddr);
     const char *ipv4Addr = (char *)(&peeraddr_in->sin_addr.s_addr);
 
-    syslog(LOG_INFO, "Accepted connection from %d.%d.%d.%d", ipv4Addr[0], ipv4Addr[1], ipv4Addr[2], ipv4Addr[3]);
+    syslog(LOG_INFO, "Accepted connection from %d.%d.%d.%d",\
+            ipv4Addr[0], ipv4Addr[1], ipv4Addr[2], ipv4Addr[3]);
 
     //Open output file to append to or create if it does not already exist
-    int outputFd = open(OUTPUT_FILEPATH, O_RDWR | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+    int outputFd = open(OUTPUT_FILEPATH, O_RDWR | O_CREAT | O_APPEND,\
+                            S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 
     if(outputFd==-1)
     {
         perror("creat() error");
-        return -1;
+        socket_data->threadCompleteFlag = true;
+        pthread_exit(thread_param);
     }
 
     //Receive a single byte at a time
@@ -166,11 +213,20 @@ int listenAndLog(int sockfd)
     char retByte;
     ssize_t sendRet;
     ssize_t readRet;
+    int lockRet;
 
     //Append each byte received to the output file
-    while(recv(connectedSock, &recvdByte, 1, 0)!=0)
+    while(recv(socket_data->connectedSock, &recvdByte, 1, 0)!=0)
     {
-        
+        lockRet = pthread_mutex_lock(thread_func_args->mutex);
+
+        if(lockRet!=0)
+        {
+            perror("pthread_mutex_lock() error");
+            socket_data->threadCompleteFlag = true;
+            pthread_exit(thread_param);
+        }
+
         while(write(outputFd, &recvdByte, 1)!=1)
             ;
 
@@ -186,7 +242,9 @@ int listenAndLog(int sockfd)
                 perror("lseek() error in returning socket input"
                     "to peer");
                     close(outputFd);
-                    return -1;
+                    //Include error element in socket_data_t?
+                    socket_data->threadCompleteFlag = true;
+                    pthread_exit(socket_data);
             }
 
             for(int i=0;i<totalByteCnt;i++)
@@ -199,33 +257,47 @@ int listenAndLog(int sockfd)
                         perror("read() error in returning socket"
                             "input to peer");
                         close(outputFd);
-                        return -1;
+                        socket_data->threadCompleteFlag = true;
+                        pthread_exit(socket_data);
                     }
 
                 } while (readRet!=1);
                 
                 do
                 {
-                    sendRet=send(connectedSock, &retByte, 1, 0);
+                    sendRet=send(socket_data->connectedSock, &retByte, 1, 0);
                     if(sendRet==-1)
                     {
                         perror("send() error in returning socket"
                             "input to peer");
                         close(outputFd);
-                        return -1;
+                        socket_data->threadCompleteFlag = true;
+                        pthread_exit(socket_data);
                     }
                 } while (sendRet!=1);
 
             }
             
         }
+
+        lockRet = pthread_mutex_unlock(thread_func_args->mutex);
+
+        if(lockRet!=0)
+        {
+            perror("pthread_mutex_lock() error");
+            socket_data->threadCompleteFlag = true;
+            pthread_exit(thread_param);
+        }
         
     }
 
-    syslog(LOG_INFO, "Closed connection from %d.%d.%d.%d", ipv4Addr[0], ipv4Addr[1], ipv4Addr[2], ipv4Addr[3]);
+    syslog(LOG_INFO, "Closed connection from %d.%d.%d.%d",\
+            ipv4Addr[0], ipv4Addr[1], ipv4Addr[2], ipv4Addr[3]);
     close(outputFd);
 
-    return 0;
+    socket_data->threadCompleteFlag = true;
+
+    pthread_exit(socket_data);
 }
 
 int checkInput(int argc, char *argv[])
@@ -272,6 +344,22 @@ int checkInput(int argc, char *argv[])
 
 int graceful_exit(int returnVal)
 {
+    socket_data_t *listSearchp = NULL;
+
+    while(!SLIST_EMPTY(head))
+    {
+        //Check list for completed threads
+        SLIST_FOREACH_SAFE(listSearchp, &head, entries)
+        {
+            if(listSearchp->threadCompleteFlag)
+            {
+                pthread_join(listSearchp->threadHandle);
+                free(listSearchp);
+                SLIST_REMOVE(&head, listSearchp, socket_data_s, entries);
+            }
+        }
+    }
+
     freeaddrinfo(sockaddr);
     closelog();
     return returnVal;

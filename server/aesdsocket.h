@@ -1,10 +1,25 @@
 #pragma once
 
+#include "./queue.h"
+#include <stdbool.h>
+#include <pthread.h>
+
 #define BACKLOG     1
 #define BUFF_SIZE   256
 
 const char OUTPUT_FILEPATH[] = "/var/tmp/aesdsocketdata";
 const char SERVER_PORT[] = "9000";
+
+typedef struct socket_data_s
+{
+    pthread threadHandle;
+    pthread_mutex_t *mutex;
+    int connectedSock;
+    struct sockaddr peeraddr;
+    bool threadCompleteFlag;
+    SLIST_ENTRY(slist_data_s) entries;
+
+} socket_data_t;
 
 /**
  * @brief Create a Stream Socket object
@@ -16,17 +31,9 @@ const char SERVER_PORT[] = "9000";
  */
 int createStreamSocket(const char *portNumberStr);
 
-/**
- * @brief Listen to the bound stream socket object for incoming connections, then output
- *  the incoming data to OUTPUT_FILEPATH shown above and echo entirety of file to
- *  the client
- * 
- * @param sockfd 
- * @return int
- * @retval -1 Error
- * @retval  0 Success 
- */
-int listenAndLog(int sockfd);
+int listenForConnections(int sockfd, socket_data_t *newListElement);
+
+void* recvAndSendAndLog(void* socket_data);
 
 /**
  * @brief Check input to the application for validity

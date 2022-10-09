@@ -165,7 +165,7 @@ int listenForConnections(int sockfd, socket_data_t **newListElement)
     (*newListElement)->threadCompleteFlag = false;
 
     if(pthread_create((&(*newListElement)->threadHandle), NULL,\
-                    recvAndSendAndLog, newListElement) != 0)
+                    recvAndSendAndLog, *newListElement) != 0)
     {
         perror("pthread_create() error");
         free(*newListElement);
@@ -181,7 +181,7 @@ void* recvAndSendAndLog(void* socket_data_arg)
 
     //Determine IP address of client for logging
     struct sockaddr_in *peeraddr_in;
-    peeraddr_in = (struct sockaddr_in *)(&socket_data->peeraddr);
+    peeraddr_in = (struct sockaddr_in *)(&(socket_data->peeraddr));
     const char *ipv4Addr = (char *)(&peeraddr_in->sin_addr.s_addr);
 
     syslog(LOG_INFO, "Accepted connection from %d.%d.%d.%d",\

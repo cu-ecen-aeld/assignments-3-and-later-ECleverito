@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
 
     while(listenForConnections(sockfd, &newListElement)==0)
     {
-        printf("data_socket_t@%p", newListElement);
+
         SLIST_INSERT_HEAD(&head, newListElement, entries);
 
         //Check list for completed threads
@@ -337,11 +337,12 @@ int checkInput(int argc, char *argv[])
 int graceful_exit(int returnVal)
 {
     socket_data_t *listSearchp = NULL;
+    socket_data_t *tmpItem;
 
     while(!SLIST_EMPTY(&head))
     {
         //Check list for completed threads
-        SLIST_FOREACH_SAFE(listSearchp, &head, entries, listSearchp){
+        SLIST_FOREACH_SAFE(listSearchp, &head, entries, tmpItem){
             if(listSearchp->threadCompleteFlag)
             {
                 pthread_join(listSearchp->threadHandle, NULL);

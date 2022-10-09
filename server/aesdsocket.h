@@ -16,6 +16,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <signal.h>
+#include <sys/time.h>
 
 #define BACKLOG     1
 #define BUFF_SIZE   256

@@ -21,6 +21,68 @@ void SIG_handler(int SIG_val)
 
 }
 
+void alarm_handler(int signo)
+{
+    int lockRet = pthread_mutex_lock(&mutex);
+
+    if(lockRet!=0)
+    {
+        perror("pthread_mutex_lock() error");
+        graceful_exit(-1);
+        exit(-1);
+    }
+
+    //Open output file to append to or create if it does not already exist
+    int outputFd = open(OUTPUT_FILEPATH, O_RDWR | O_CREAT | O_APPEND,\
+                            S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+
+    if(outputFd==-1)
+    {
+        perror("open() error in timestamping");
+        graceful_exit(-1);
+        exit(-1);
+    }
+
+    time_t t;
+    struct tm *tmp;
+    char timeStr[200];
+    t = time(NULL);
+    tmp = localtime(&t);
+    if(tmp==NULL)
+    {
+        perror("localtime() error");
+        graceful_exit(-1);
+        exit(-1);
+    }
+
+    int bytesWritten;
+    bytesWritten = strftime(timeStr,sizeof(timeStr)/sizeof(timeStr[0]),\
+                "%a, %d %b %Y %T %z\n",tmp);
+    
+    if(bytesWritten==0)
+    {
+        fprintf(stderr, "strftime returned 0");
+        graceful_exit(-1);
+        exit(-1);
+    }
+
+    int bytesOutFile = 0;
+
+    do
+    {
+        bytesOutFile = write(outputFd, &timeStr[bytesOutFile],\
+                                     bytesWritten);
+        bytesWritten-=bytesOutFile;
+    } while (bytesWritten>0);
+
+    close(outputFd);
+
+    pthread_mutex_unlock(&mutex);
+
+    return;
+
+}
+
 int main(int argc, char *argv[])
 {
     openlog("aesdsocket", 0, LOG_USER);
@@ -43,6 +105,21 @@ int main(int argc, char *argv[])
     SIGS_action.sa_flags = 0;
     sigaction(SIGTERM, &SIGS_action, NULL);
     sigaction(SIGINT, &SIGS_action, NULL);
+    //Alarm signal-handling
+    struct sigaction alrm_action;
+    alrm_action.sa_handler = &alarm_handler;
+    sigemptyset(&alrm_action.sa_mask);
+    sigaction(SIGALRM, &alrm_action, NULL);
+    struct itimerval delay;
+    delay.it_value.tv_sec=10;
+    delay.it_value.tv_usec=0;
+    delay.it_interval.tv_sec=10;
+    delay.it_interval.tv_usec=0;
+    if(setitimer(ITIMER_REAL, &delay, NULL)!=0)
+    {
+        perror("setitimer() error:");
+        return -1;
+    }
 
     int sockfd = createStreamSocket(SERVER_PORT);
     if(sockfd==-1)
@@ -72,23 +149,29 @@ int main(int argc, char *argv[])
 
     socket_data_t *tmpItem = NULL;
 
-    while(listenForConnections(sockfd, &newListElement)==0)
+    int retVal;
+
+    do
     {
+        retVal = listenForConnections(sockfd, &newListElement);
 
-        SLIST_INSERT_HEAD(&head, newListElement, entries);
-
-        //Check list for completed threads
-        SLIST_FOREACH_SAFE(listSearchp, &head, entries, tmpItem)
+        if(retVal==0)
         {
-            if(listSearchp->threadCompleteFlag)
+            SLIST_INSERT_HEAD(&head, newListElement, entries);
+
+            //Check list for completed threads
+            SLIST_FOREACH_SAFE(listSearchp, &head, entries, tmpItem)
             {
-                pthread_join(listSearchp->threadHandle, NULL);
-                free(listSearchp);
-                SLIST_REMOVE(&head, listSearchp, socket_data_s, entries);
+                if(listSearchp->threadCompleteFlag)
+                {
+                    pthread_join(listSearchp->threadHandle, NULL);
+                    free(listSearchp);
+                    SLIST_REMOVE(&head, listSearchp, socket_data_s, entries);
+                }
             }
         }
-
-    }
+        
+    }while(retVal!=-1);
 
     return graceful_exit(-1);
 
@@ -147,6 +230,13 @@ int listenForConnections(int sockfd, socket_data_t **newListElement)
     int connectedSock = accept(sockfd, &peeraddr, &peer_addr_size);
     if(connectedSock==-1)
     {
+        if(errno==EINTR)
+        {
+            //Allow this to keep executing even
+            //on interruptions from interval alarm
+            return -2;
+        }
+
         perror("accept() error");
         return -1;
     }
@@ -193,14 +283,13 @@ void* recvAndSendAndLog(void* socket_data_arg)
 
     if(outputFd==-1)
     {
-        perror("creat() error");
+        perror("open() error");
         socket_data->threadCompleteFlag = true;
         pthread_exit(socket_data);
     }
 
     //Receive a single byte at a time
     char recvdByte;
-    static int totalByteCnt = 0;
 
     char retByte;
     ssize_t sendRet;
@@ -222,13 +311,11 @@ void* recvAndSendAndLog(void* socket_data_arg)
         while(write(outputFd, &recvdByte, 1)!=1)
             ;
 
-        totalByteCnt++;
-
         //Output contents of output file to
         //the peer for every packet received
         if(recvdByte=='\n')
         {
-
+            //Set file pointer to 0
             if(lseek(outputFd, 0, SEEK_SET)==-1)
             {
                 perror("lseek() error in returning socket input"
@@ -238,26 +325,32 @@ void* recvAndSendAndLog(void* socket_data_arg)
                     socket_data->threadCompleteFlag = true;
                     pthread_exit(socket_data);
             }
-
-            for(int i=0;i<totalByteCnt;i++)
+            
+            readRet=1;
+            //Read until EOF
+            while(readRet!=0)
             {
                 do
                 {
                     readRet=read(outputFd, &retByte, 1);
                     if(readRet==-1)
                     {
-                        perror("read() error in returning socket"
+                        if(errno!=EAGAIN)
+                        {
+                            perror("read() error in returning socket"
                             "input to peer");
-                        close(outputFd);
-                        socket_data->threadCompleteFlag = true;
-                        pthread_exit(socket_data);
+                            close(outputFd);
+                            socket_data->threadCompleteFlag = true;
+                            pthread_exit(socket_data);
+                        }
+                        
                     }
 
-                } while (readRet!=1);
+                } while (readRet<0);
                 
                 do
                 {
-                    sendRet=send(socket_data->connectedSock, &retByte, 1, 0);
+                    sendRet=send(socket_data->connectedSock, &retByte, readRet, 0);
                     if(sendRet==-1)
                     {
                         perror("send() error in returning socket"
@@ -266,20 +359,23 @@ void* recvAndSendAndLog(void* socket_data_arg)
                         socket_data->threadCompleteFlag = true;
                         pthread_exit(socket_data);
                     }
-                } while (sendRet!=1);
+                } while (sendRet<0);
 
             }
             
         }
+                    printf("After all bytes have been output to client\n");
 
-        lockRet = pthread_mutex_unlock(&mutex);
+            lockRet = pthread_mutex_unlock(&mutex);
 
-        if(lockRet!=0)
-        {
-            perror("pthread_mutex_lock() error");
-            socket_data->threadCompleteFlag = true;
-            pthread_exit(socket_data);
-        }
+            if(lockRet!=0)
+            {
+                perror("pthread_mutex_lock() error");
+                socket_data->threadCompleteFlag = true;
+                pthread_exit(socket_data);
+            }
+
+            printf("After mutex unlocked\n");
         
     }
 

@@ -296,16 +296,25 @@ void* recvAndSendAndLog(void* socket_data_arg)
     ssize_t readRet;
     int lockRet;
 
+    bool mutexLocked=false;
+
     //Append each byte received to the output file
     while(recv(socket_data->connectedSock, &recvdByte, 1, 0)!=0)
     {
-        lockRet = pthread_mutex_lock(&mutex);
-
-        if(lockRet!=0)
+        if(!mutexLocked)
         {
-            perror("pthread_mutex_lock() error");
-            socket_data->threadCompleteFlag = true;
-            pthread_exit(socket_data);
+
+            lockRet = pthread_mutex_lock(&mutex);
+
+            if(lockRet!=0)
+            {
+                perror("pthread_mutex_lock() error");
+                socket_data->threadCompleteFlag = true;
+                pthread_exit(socket_data);
+            }
+
+            mutexLocked=true;
+
         }
 
         while(write(outputFd, &recvdByte, 1)!=1)
@@ -362,20 +371,24 @@ void* recvAndSendAndLog(void* socket_data_arg)
                 } while (sendRet<0);
 
             }
+
+            if(mutexLocked)
+            {
+                lockRet = pthread_mutex_unlock(&mutex);
+
+                if(lockRet!=0)
+                {
+                    perror("pthread_mutex_lock() error");
+                    socket_data->threadCompleteFlag = true;
+                    pthread_exit(socket_data);
+                }
+
+                printf("After mutex unlocked\n");
+            }
             
         }
-                    printf("After all bytes have been output to client\n");
-
-            lockRet = pthread_mutex_unlock(&mutex);
-
-            if(lockRet!=0)
-            {
-                perror("pthread_mutex_lock() error");
-                socket_data->threadCompleteFlag = true;
-                pthread_exit(socket_data);
-            }
-
-            printf("After mutex unlocked\n");
+        
+        printf("After all bytes have been output to client\n");
         
     }
 

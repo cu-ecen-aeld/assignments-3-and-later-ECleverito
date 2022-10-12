@@ -57,7 +57,7 @@ void alarm_handler(int signo)
 
     int bytesWritten;
     bytesWritten = strftime(timeStr,sizeof(timeStr)/sizeof(timeStr[0]),\
-                "%a, %d %b %Y %T %z\n",tmp);
+                "timestamp:%a, %d %b %Y %T %z\n",tmp);
     
     if(bytesWritten==0)
     {
@@ -105,21 +105,6 @@ int main(int argc, char *argv[])
     SIGS_action.sa_flags = 0;
     sigaction(SIGTERM, &SIGS_action, NULL);
     sigaction(SIGINT, &SIGS_action, NULL);
-    //Alarm signal-handling
-    struct sigaction alrm_action;
-    alrm_action.sa_handler = &alarm_handler;
-    sigemptyset(&alrm_action.sa_mask);
-    sigaction(SIGALRM, &alrm_action, NULL);
-    struct itimerval delay;
-    delay.it_value.tv_sec=10;
-    delay.it_value.tv_usec=0;
-    delay.it_interval.tv_sec=10;
-    delay.it_interval.tv_usec=0;
-    if(setitimer(ITIMER_REAL, &delay, NULL)!=0)
-    {
-        perror("setitimer() error:");
-        return -1;
-    }
 
     int sockfd = createStreamSocket(SERVER_PORT);
     if(sockfd==-1)
@@ -140,6 +125,14 @@ int main(int argc, char *argv[])
         {
             return graceful_exit(0);
         }
+    }
+
+    //Timer must be set up after daemon has been created,
+    //as child processes do not inherit timers
+    if(setupTimer()!=0)
+    {
+        fprintf(stderr,"Timer setup failed\n");
+        return -1;
     }
 
     SLIST_INIT(&head);
@@ -165,8 +158,8 @@ int main(int argc, char *argv[])
                 if(listSearchp->threadCompleteFlag)
                 {
                     pthread_join(listSearchp->threadHandle, NULL);
-                    free(listSearchp);
                     SLIST_REMOVE(&head, listSearchp, socket_data_s, entries);
+                    free(listSearchp);                    
                 }
             }
         }
@@ -383,12 +376,9 @@ void* recvAndSendAndLog(void* socket_data_arg)
                     pthread_exit(socket_data);
                 }
 
-                printf("After mutex unlocked\n");
             }
             
         }
-        
-        printf("After all bytes have been output to client\n");
         
     }
 
@@ -443,10 +433,34 @@ int checkInput(int argc, char *argv[])
 
 }
 
+int setupTimer()
+{
+    //Alarm signal-handling
+    struct sigaction alrm_action;
+    alrm_action.sa_handler = &alarm_handler;
+    alrm_action.sa_flags = 0;
+    sigemptyset(&alrm_action.sa_mask);
+    sigaction(SIGALRM, &alrm_action, NULL);
+    struct itimerval delay;
+    delay.it_value.tv_sec=10;
+    delay.it_value.tv_usec=0;
+    delay.it_interval.tv_sec=10;
+    delay.it_interval.tv_usec=0;
+
+    if(setitimer(ITIMER_REAL, &delay, NULL)!=0)
+    {
+        perror("setitimer() error:");
+        return -1;
+    }
+
+    return 0;
+
+}
+
 int graceful_exit(int returnVal)
 {
     socket_data_t *listSearchp = NULL;
-    socket_data_t *tmpItem;
+    socket_data_t *tmpItem = NULL;
 
     while(!SLIST_EMPTY(&head))
     {
@@ -455,8 +469,8 @@ int graceful_exit(int returnVal)
             if(listSearchp->threadCompleteFlag)
             {
                 pthread_join(listSearchp->threadHandle, NULL);
-                free(listSearchp);
                 SLIST_REMOVE(&head, listSearchp, socket_data_s, entries);
+                free(listSearchp);                
             }
         }
     }

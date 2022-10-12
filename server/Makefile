@@ -1,12 +1,17 @@
-CROSS_COMPILER=
-CC=${CROSS_COMPILER}gcc
-
-CCFLAGS=-Werror -Wall -O0 -g -pthread
-
+CROSS_COMPILE=
+ifeq ($(CC),)
+	CC=${CROSS_COMPILE}gcc
+endif
+ifeq ($(CFLAGS),)
+	CFLAGS=-Werror -Wall -O0 -g -pthread
+endif
+ifeq ($(LDFLAGS),)
+	LDFLAGS=-pthread -lrt
+endif
 all: aesdsocket
 
 aesdsocket:	aesdsocket.c aesdsocket.h
-	${CC} ${CCFLAGS} aesdsocket.c -o aesdsocket
+	${CC} ${CFLAGS} ${LDFLAGS} aesdsocket.c -o aesdsocket
 
 clean:
 	rm -f *.o aesdsocket

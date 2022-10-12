@@ -5,7 +5,23 @@ struct addrinfo *sockaddr = NULL;
 SLIST_HEAD(slisthead, socket_data_s) head;
 pthread_mutex_t mutex;
 
-void SIG_handler(int SIG_val)
+void SIGTERM_handler(int SIG_val)
+{
+    if(unlink(OUTPUT_FILEPATH)==-1)
+    {
+        if(errno==ENOENT)
+        {
+            syslog(LOG_INFO, "Output file had not been created yet");
+        }
+    }
+
+    syslog(LOG_INFO, "Caught signal, exiting");
+    graceful_exit(0);
+    exit(0);
+
+}
+
+void SIGINT_handler(int SIG_val)
 {
     if(unlink(OUTPUT_FILEPATH)==-1)
     {
@@ -99,12 +115,16 @@ int main(int argc, char *argv[])
     }
 
     //Set up signal-handling
-    struct sigaction SIGS_action;
-    SIGS_action.sa_handler = &SIG_handler;
-    sigemptyset(&SIGS_action.sa_mask);
-    SIGS_action.sa_flags = 0;
-    sigaction(SIGTERM, &SIGS_action, NULL);
-    sigaction(SIGINT, &SIGS_action, NULL);
+    struct sigaction SIGINT_action;
+    struct sigaction SIGTERM_action;
+    SIGINT_action.sa_handler = &SIGINT_handler;
+    SIGTERM_action.sa_handler = &SIGTERM_handler;
+    sigemptyset(&SIGINT_action.sa_mask);
+    sigemptyset(&SIGTERM_action.sa_mask);
+    SIGINT_action.sa_flags = 0;
+    SIGTERM_action.sa_flags = 0;
+    sigaction(SIGTERM, &SIGTERM_action, NULL);
+    sigaction(SIGINT, &SIGINT_action, NULL);
 
     int sockfd = createStreamSocket(SERVER_PORT);
     if(sockfd==-1)

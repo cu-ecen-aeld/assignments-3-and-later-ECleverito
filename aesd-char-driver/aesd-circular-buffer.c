@@ -29,10 +29,27 @@
 struct aesd_buffer_entry *aesd_circular_buffer_find_entry_offset_for_fpos(struct aesd_circular_buffer *buffer,
             size_t char_offset, size_t *entry_offset_byte_rtn )
 {
-    /**
-    * TODO: implement per description
-    */
-    return NULL;
+    int i, byteCount=0;
+    struct aesd_buffer_entry entrySearcher;
+    bool entryFound=false;
+
+    AESD_CIRCULAR_BUFFER_FOREACH(entrySearcher, &buffer, index)
+    {
+        if(char_offset<(byteCount+entrySearcher.size))
+        {
+            entryFound=true;
+            break;
+        }
+        else
+        {
+            byteCount+=entrySearcher.size;
+        }
+    }
+
+    if entryFound
+        return entrySearcher;
+    else
+        return NULL;
 }
 
 /**
@@ -44,9 +61,31 @@ struct aesd_buffer_entry *aesd_circular_buffer_find_entry_offset_for_fpos(struct
 */
 void aesd_circular_buffer_add_entry(struct aesd_circular_buffer *buffer, const struct aesd_buffer_entry *add_entry)
 {
-    /**
-    * TODO: implement per description
-    */
+    if(buffer->full)
+    {
+        //If ptrs are at end of buffer array and needs to wrap-around
+        if(out_offs==(AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED-1))
+        {
+            buffer->entry[buffer->out_offs] = &add_entry;
+            buffer->out_ffs=0;
+            buffer->in_ffs=0;
+        }
+        else
+        {
+            buffer->out_ffs++;
+            buffer->in_ffs++;
+        }
+    }
+    else
+    {
+        buffer->entry[buffer->in_offs] = &add_entry;
+        buffer->entry++;
+        if(buffer->in_offs==buffer->out_offs)
+        {
+            buffer->full=true;
+        }
+    }
+
 }
 
 /**

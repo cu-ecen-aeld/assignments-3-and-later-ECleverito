@@ -118,7 +118,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
     if(down_interruptible(&(aesd_device.buffer_sem)))
         return -ERESTARTSYS;
 
-    placeholder = kmalloc(sizeof(char), count);
+    placeholder = kmalloc(sizeof(char)*count, GFP_KERNEL);
 
     if(!placeholder)
     {
@@ -145,8 +145,9 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
 
     if(aesd_device.inLimbo)
     {
-            newLimboString = kmalloc(sizeof(char),
-                                    aesd_device.limboLength + entrySize);
+            newLimboString = kmalloc(sizeof(char)*(aesd_device.limboLength\
+                                                     + entrySize),
+                                        GFP_KERNEL);
 
             if(!newLimboString)
             {

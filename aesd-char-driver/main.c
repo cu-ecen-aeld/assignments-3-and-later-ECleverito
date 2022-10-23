@@ -273,11 +273,23 @@ int aesd_init_module(void)
 
 void aesd_cleanup_module(void)
 {
+    struct aesd_buffer_entry *entryptr = NULL;
+    int i;
+
     dev_t devno = MKDEV(aesd_major, aesd_minor);
 
     cdev_del(&aesd_device.cdev);
 
     //Delete semaphore needed?
+    if(aesd_device.inLimbo)
+    {
+        kfree(aesd_device.limboString);
+    }
+
+    AESD_CIRCULAR_BUFFER_FOREACH(entryptr, &aesd_device.dev_cb_fifo, i)
+    {
+        kfree(entryptr->buffptr);
+    }
 
     unregister_chrdev_region(devno, 1);
 }

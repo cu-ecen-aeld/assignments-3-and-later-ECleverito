@@ -85,7 +85,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
 
     } while(bytesTransferred != count);
 
-
+    retval = count;
     //Read out count number of bytes to buf (can implement partial-read
     //rule, which means that only the remainder of the identified entry
     //will be returned)
@@ -186,8 +186,6 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
                 aesd_device.limboString = newLimboString;
                 aesd_device.limboString += entrySize;  
             }
-
-            goto out;
     }
     else
     {
@@ -202,7 +200,6 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
                 kfree(cb_fifo->entry[cb_fifo->out_offs].buffptr);
             }
             aesd_circular_buffer_add_entry(cb_fifo, &newEntry);
-            goto out;
         }
         else
         {
@@ -210,9 +207,9 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
             aesd_device.inLimbo = true;
             aesd_device.limboString = placeholder;
             aesd_device.limboLength = entrySize;
-            goto out;
         }
     }
+    retval=entrySize;
     
     out:
         up(&(aesd_device.buffer_sem));

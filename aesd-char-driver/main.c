@@ -17,11 +17,16 @@
 #include <linux/types.h>
 #include <linux/cdev.h>
 #include <linux/fs.h> // file_operations
+
+#include <asm/uaccess.h>
+#include <linux/slab.h>
+#include <linux/string.h>
+
 #include "aesdchar.h"
 int aesd_major =   0; // use dynamic major
 int aesd_minor =   0;
 
-MODULE_AUTHOR("Your Name Here"); /** TODO: fill in your name **/
+MODULE_AUTHOR("Erich Clever");
 MODULE_LICENSE("Dual BSD/GPL");
 
 struct aesd_dev aesd_device;
@@ -29,9 +34,9 @@ struct aesd_dev aesd_device;
 int aesd_open(struct inode *inode, struct file *filp)
 {
     PDEBUG("open");
-    /**
-     * TODO: handle open
-     */
+
+    filp->private_data = &aesd_device;
+
     return 0;
 }
 
@@ -47,24 +52,149 @@ int aesd_release(struct inode *inode, struct file *filp)
 ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
                 loff_t *f_pos)
 {
+    struct aesd_buffer_entry *offsetEntry;
+    size_t offsetEntry_ind;
+
     ssize_t retval = 0;
     PDEBUG("read %zu bytes with offset %lld",count,*f_pos);
-    /**
-     * TODO: handle read
-     */
+
+    offsetEntry = NULL;
+
+    offsetEntry = aesd_circular_buffer_find_entry_offset_for_fpos(
+                                                    &aesd_device.dev_cb_fifo,
+                                                    *f_pos,
+                                                    &offsetEntry_ind);
+
+    //Read out count number of bytes to buf (can implement partial-read
+    //rule, which means that only the remainder of the identified entry
+    //will be returned)
+    //To do this, return value must be remainder bytes number and
+    //fpos should be updated
+
     return retval;
 }
 
 ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
                 loff_t *f_pos)
 {
+    char* newLimboString = NULL;
+    uint32_t entrySize = 0;
+    uint32_t bytesTransferred = 0;
+    bool nlFlag = false;
+    struct aesd_circular_buffer *cb_fifo = NULL;
+    struct aesd_buffer_entry newEntry;    
+
+    char *placeholder = NULL;
+
     ssize_t retval = -ENOMEM;
+
     PDEBUG("write %zu bytes with offset %lld",count,*f_pos);
-    /**
-     * TODO: handle write
-     */
-    return retval;
+
+    cb_fifo = &(aesd_device.dev_cb_fifo);
+
+    if(down_interruptible(&(aesd_device.buffer_sem)))
+        return -ERESTARTSYS;
+
+    placeholder = kmalloc(sizeof(char), count);
+
+    if(!placeholder)
+    {
+        retval = -ENOMEM;
+        goto out;
+    }
+
+    do{
+        count -= bytesTransferred;
+
+        bytesTransferred = copy_from_user(placeholder,
+                                                        buf,
+                                                        count);
+
+    } while(bytesTransferred != count);
+
+    while(entrySize < count && !nlFlag)
+    {
+        if(placeholder[entrySize]=='\n')
+            nlFlag = true;
+
+        entrySize++;
+    }
+
+    if(aesd_device.inLimbo)
+    {
+            newLimboString = kmalloc(sizeof(char),
+                                    aesd_device.limboLength + entrySize);
+
+            if(!newLimboString)
+            {
+                retval = -ENOMEM;
+                goto out;
+            }
+
+            memcpy(newLimboString, aesd_device.limboString, aesd_device.limboLength);
+            memcpy(newLimboString + aesd_device.limboLength,
+                    placeholder,
+                    entrySize);
+
+            kfree(placeholder);
+
+            if(nlFlag)
+            {
+                //Add new entry to CB
+                newEntry.buffptr = newLimboString;
+                newEntry.size = aesd_device.limboLength + entrySize;
+
+                if(cb_fifo->full)
+                {
+                    kfree(cb_fifo->entry[cb_fifo->out_offs].buffptr);
+                }
+                aesd_circular_buffer_add_entry(cb_fifo, &newEntry);
+
+                //Get device out of packet limbo
+                aesd_device.inLimbo = false;
+                aesd_device.limboLength = 0;
+                kfree(aesd_device.limboString);
+            }
+            else
+            {
+                //Update limbo string
+                kfree(aesd_device.limboString);
+                aesd_device.limboString = newLimboString;
+                aesd_device.limboString += entrySize;  
+            }
+
+            goto out;
+    }
+    else
+    {
+        if(nlFlag)
+        {
+            //Clean packet entry scenario
+            newEntry.buffptr = placeholder;
+            newEntry.size = entrySize;
+
+            if(cb_fifo->full)
+            {
+                kfree(cb_fifo->entry[cb_fifo->out_offs].buffptr);
+            }
+            aesd_circular_buffer_add_entry(cb_fifo, &newEntry);
+            goto out;
+        }
+        else
+        {
+            //Enter limbo
+            aesd_device.inLimbo = true;
+            aesd_device.limboString = placeholder;
+            aesd_device.limboLength = entrySize;
+            goto out;
+        }
+    }
+    
+    out:
+        up(&(aesd_device.buffer_sem));
+        return retval;
 }
+
 struct file_operations aesd_fops = {
     .owner =    THIS_MODULE,
     .read =     aesd_read,
@@ -102,9 +232,12 @@ int aesd_init_module(void)
     }
     memset(&aesd_device,0,sizeof(struct aesd_dev));
 
-    /**
-     * TODO: initialize the AESD specific portion of the device
-     */
+    aesd_device.limboString = NULL;
+
+    //Maybe do some other initialization here. Don't even
+    //have to initialize cb fifo bc above statement does
+    //what we need
+    sema_init(&(aesd_device.buffer_sem), SEM_INIT_VAL);
 
     result = aesd_setup_cdev(&aesd_device);
 
@@ -121,9 +254,7 @@ void aesd_cleanup_module(void)
 
     cdev_del(&aesd_device.cdev);
 
-    /**
-     * TODO: cleanup AESD specific poritions here as necessary
-     */
+    //Delete semaphore needed?
 
     unregister_chrdev_region(devno, 1);
 }

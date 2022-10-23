@@ -15,6 +15,8 @@
 #  ifdef __KERNEL__
      /* This one if debugging is on, and kernel space */
 #    define PDEBUG(fmt, args...) printk( KERN_DEBUG "aesdchar: " fmt, ## args)
+#    include <linux/semaphore.h>
+#    define SEM_INIT_VAL 1
 #  else
      /* This one for user space */
 #    define PDEBUG(fmt, args...) fprintf(stderr, fmt, ## args)
@@ -23,11 +25,15 @@
 #  define PDEBUG(fmt, args...) /* not debugging: nothing */
 #endif
 
+#include "aesd-circular-buffer.h"
+
 struct aesd_dev
 {
-    /**
-     * TODO: Add structure(s) and locks needed to complete assignment requirements
-     */
+    struct semaphore buffer_sem;
+    struct aesd_circular_buffer dev_cb_fifo;
+    char*  limboString;
+    uint32_t limboLength;
+    bool   inLimbo;
     struct cdev cdev;     /* Char device structure      */
 };
 

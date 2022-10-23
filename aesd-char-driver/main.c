@@ -55,15 +55,36 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
     struct aesd_buffer_entry *offsetEntry;
     size_t offsetEntry_ind;
 
+    uint32_t bytesTransferred = 0;
+
     ssize_t retval = 0;
     PDEBUG("read %zu bytes with offset %lld",count,*f_pos);
 
-    offsetEntry = NULL;
+    if(down_interruptible(&(aesd_device.buffer_sem)))
+        return -ERESTARTSYS;
 
     offsetEntry = aesd_circular_buffer_find_entry_offset_for_fpos(
                                                     &aesd_device.dev_cb_fifo,
                                                     *f_pos,
                                                     &offsetEntry_ind);
+
+    if(!offsetEntry)
+    {
+        goto out;
+    }
+
+    if(count>(offsetEntry->size - (offsetEntry_ind+1)))
+    {
+        count = offsetEntry->size - (offsetEntry_ind+1);
+    }
+
+    do{
+        bytesTransferred += copy_to_user(buf+bytesTransferred,
+                                &(offsetEntry->buffptr[offsetEntry_ind+bytesTransferred]),
+                                count-bytesTransferred);
+
+    } while(bytesTransferred != count);
+
 
     //Read out count number of bytes to buf (can implement partial-read
     //rule, which means that only the remainder of the identified entry
@@ -71,7 +92,9 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
     //To do this, return value must be remainder bytes number and
     //fpos should be updated
 
-    return retval;
+    out:
+        up(&(aesd_device.buffer_sem));
+        return retval;
 }
 
 ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
@@ -106,9 +129,9 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
     do{
         count -= bytesTransferred;
 
-        bytesTransferred = copy_from_user(placeholder,
-                                                        buf,
-                                                        count);
+        bytesTransferred = copy_from_user(placeholder+bytesTransferred,
+                                            buf+bytesTransferred,
+                                            count);
 
     } while(bytesTransferred != count);
 

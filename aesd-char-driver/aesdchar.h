@@ -15,7 +15,7 @@
 #  ifdef __KERNEL__
      /* This one if debugging is on, and kernel space */
 #    define PDEBUG(fmt, args...) printk( KERN_DEBUG "aesdchar: " fmt, ## args)
-#    include <linux/semaphore.h>
+#    include <linux/mutex.h>
 #    define SEM_INIT_VAL 1
 #  else
      /* This one for user space */
@@ -29,7 +29,7 @@
 
 struct aesd_dev
 {
-    struct semaphore buffer_sem;
+    struct mutex lock;
     struct aesd_circular_buffer dev_cb_fifo;
     char*  limboString;
     uint32_t limboLength;

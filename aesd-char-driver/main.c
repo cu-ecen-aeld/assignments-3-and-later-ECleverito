@@ -84,16 +84,15 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
     }
 
     bytesLeft=newCount;
-    do{
-        PDEBUG("Copying %u bytes from %p",bytesLeft,
-                                &(offsetEntry->buffptr[offsetEntry_ind+newCount-bytesLeft]));
 
-        bytesLeft = copy_to_user(buf+newCount-bytesLeft,
-                                &(offsetEntry->buffptr[offsetEntry_ind+newCount-bytesLeft]),
-                                bytesLeft);
-        
+    PDEBUG("Copying %u bytes from %p",bytesLeft,
+                                &(offsetEntry->buffptr[offsetEntry_ind]));
 
-    } while(bytesLeft != 0);
+    if(copy_to_user(buf, &(offsetEntry->buffptr[offsetEntry_ind]),bytesLeft))
+    {
+        retval = -EFAULT;
+        goto out;
+    }   
 
     retval = count;
     //Read out count number of bytes to buf (can implement partial-read

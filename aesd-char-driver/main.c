@@ -153,6 +153,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
 
         entrySize++;
     }
+    entrySize--;
 
     if(aesd_device.inLimbo)
     {

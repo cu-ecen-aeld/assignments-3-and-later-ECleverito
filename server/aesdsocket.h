@@ -21,7 +21,7 @@
 #define BACKLOG     1
 #define BUFF_SIZE   256
 
-const char OUTPUT_FILEPATH[] = "/dev/aeschar";
+const char OUTPUT_FILEPATH[] = "/dev/aesdchar";
 const char SERVER_PORT[] = "9000";
 
 typedef struct socket_data_s socket_data_t;

@@ -76,10 +76,13 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
 
     if(count>(offsetEntry->size - offsetEntry_ind))
     {
-        count = offsetEntry->size - offsetEntry_ind;
+        bytesLeft = offsetEntry->size - offsetEntry_ind;
+    }
+    else
+    {
+        bytesLeft = count;
     }
 
-    bytesLeft=count;
     do{
         bytesLeft = copy_to_user(buf+count-bytesLeft,
                                 &(offsetEntry->buffptr[offsetEntry_ind+count-bytesLeft]),

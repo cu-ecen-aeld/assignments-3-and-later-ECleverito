@@ -93,7 +93,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
         retval = -EFAULT;
         goto out;
     }   
-    *fpos += bytesLeft;
+    *f_pos += bytesLeft;
     retval = bytesLeft;
     //Read out count number of bytes to buf (can implement partial-read
     //rule, which means that only the remainder of the identified entry

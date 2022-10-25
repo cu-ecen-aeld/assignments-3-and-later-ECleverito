@@ -405,6 +405,7 @@ void* recvAndSendAndLog(void* socket_data_arg)
             }
             
         }
+        printf("Reached EOF\n");
         
     }
 

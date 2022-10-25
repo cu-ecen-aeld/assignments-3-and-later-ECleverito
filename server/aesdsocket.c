@@ -7,96 +7,16 @@ pthread_mutex_t mutex;
 
 void SIGTERM_handler(int SIG_val)
 {
-    if(unlink(OUTPUT_FILEPATH)==-1)
-    {
-        if(errno==ENOENT)
-        {
-            syslog(LOG_INFO, "Output file had not been created yet");
-        }
-    }
-
     syslog(LOG_INFO, "Caught signal, exiting");
     graceful_exit(0);
     exit(0);
-
 }
 
 void SIGINT_handler(int SIG_val)
 {
-    if(unlink(OUTPUT_FILEPATH)==-1)
-    {
-        if(errno==ENOENT)
-        {
-            syslog(LOG_INFO, "Output file had not been created yet");
-        }
-    }
-
     syslog(LOG_INFO, "Caught signal, exiting");
     graceful_exit(0);
     exit(0);
-
-}
-
-void alarm_handler(int signo)
-{
-    int lockRet = pthread_mutex_lock(&mutex);
-
-    if(lockRet!=0)
-    {
-        perror("pthread_mutex_lock() error");
-        graceful_exit(-1);
-        exit(-1);
-    }
-
-    //Open output file to append to or create if it does not already exist
-    int outputFd = open(OUTPUT_FILEPATH, O_RDWR | O_CREAT | O_APPEND,\
-                            S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
-
-    if(outputFd==-1)
-    {
-        perror("open() error in timestamping");
-        graceful_exit(-1);
-        exit(-1);
-    }
-
-    time_t t;
-    struct tm *tmp;
-    char timeStr[200];
-    t = time(NULL);
-    tmp = localtime(&t);
-    if(tmp==NULL)
-    {
-        perror("localtime() error");
-        graceful_exit(-1);
-        exit(-1);
-    }
-
-    int bytesWritten;
-    bytesWritten = strftime(timeStr,sizeof(timeStr)/sizeof(timeStr[0]),\
-                "timestamp:%a, %d %b %Y %T %z\n",tmp);
-    
-    if(bytesWritten==0)
-    {
-        fprintf(stderr, "strftime returned 0");
-        graceful_exit(-1);
-        exit(-1);
-    }
-
-    int bytesOutFile = 0;
-
-    do
-    {
-        bytesOutFile = write(outputFd, &timeStr[bytesOutFile],\
-                                     bytesWritten);
-        bytesWritten-=bytesOutFile;
-    } while (bytesWritten>0);
-
-    close(outputFd);
-
-    pthread_mutex_unlock(&mutex);
-
-    return;
-
 }
 
 int main(int argc, char *argv[])
@@ -145,14 +65,6 @@ int main(int argc, char *argv[])
         {
             return graceful_exit(0);
         }
-    }
-
-    //Timer must be set up after daemon has been created,
-    //as child processes do not inherit timers
-    if(setupTimer()!=0)
-    {
-        fprintf(stderr,"Timer setup failed\n");
-        return -1;
     }
 
     SLIST_INIT(&head);
@@ -448,30 +360,6 @@ int checkInput(int argc, char *argv[])
 
         return -1;
     }	
-
-    return 0;
-
-}
-
-int setupTimer()
-{
-    //Alarm signal-handling
-    struct sigaction alrm_action;
-    alrm_action.sa_handler = &alarm_handler;
-    alrm_action.sa_flags = 0;
-    sigemptyset(&alrm_action.sa_mask);
-    sigaction(SIGALRM, &alrm_action, NULL);
-    struct itimerval delay;
-    delay.it_value.tv_sec=10;
-    delay.it_value.tv_usec=0;
-    delay.it_interval.tv_sec=10;
-    delay.it_interval.tv_usec=0;
-
-    if(setitimer(ITIMER_REAL, &delay, NULL)!=0)
-    {
-        perror("setitimer() error:");
-        return -1;
-    }
 
     return 0;
 

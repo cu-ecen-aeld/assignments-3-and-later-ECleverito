@@ -139,7 +139,10 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
     while(entrySize < count && !nlFlag)
     {
         if(placeholder[entrySize]=='\n')
+        {
             nlFlag = true;
+            break;
+        }
 
         entrySize++;
     }

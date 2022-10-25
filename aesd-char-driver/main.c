@@ -55,7 +55,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
     struct aesd_buffer_entry *offsetEntry;
     size_t offsetEntry_ind;
 
-    uint32_t bytesLeft;
+    uint32_t bytesLeft, decCount;
 
     ssize_t retval = 0;
     
@@ -76,7 +76,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
 
     if(count>(offsetEntry->size - offsetEntry_ind))
     {
-        bytesLeft = offsetEntry->size - offsetEntry_ind;
+        decCount = offsetEntry->size - offsetEntry_ind;
     }
     else
     {
@@ -84,8 +84,8 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
     }
 
     do{
-        bytesLeft = copy_to_user(buf+count-bytesLeft,
-                                &(offsetEntry->buffptr[offsetEntry_ind+count-bytesLeft]),
+        bytesLeft = copy_to_user(buf+decCount-bytesLeft,
+                                &(offsetEntry->buffptr[offsetEntry_ind+decCount-bytesLeft]),
                                 bytesLeft);
 
     } while(bytesLeft != 0);

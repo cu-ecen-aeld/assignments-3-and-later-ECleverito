@@ -390,6 +390,7 @@ void* recvAndSendAndLog(void* socket_data_arg)
                 } while (sendRet<0);
 
             }
+            printf("Zero returned!\n");
 
             if(mutexLocked)
             {

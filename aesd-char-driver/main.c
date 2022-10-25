@@ -105,7 +105,8 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
 
     out:
         mutex_unlock(&(aesd_device.lock));
-        PDEBUG("Returning %zu for read", count);
+        PDEBUG("Returning %zu bytes for read", count);
+        PDEBUG("Actual return value: %zu", retval);
         return retval;
 }
 

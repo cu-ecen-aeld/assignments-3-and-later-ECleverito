@@ -77,9 +77,11 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
     if(count>(offsetEntry->size - offsetEntry_ind))
     {
         decCount = offsetEntry->size - offsetEntry_ind;
+        bytesLeft = decCount;
     }
     else
     {
+        decCount = count;
         bytesLeft = count;
     }
 

@@ -61,8 +61,8 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
     
     PDEBUG("read %zu bytes with offset %lld",count,*f_pos);
 
-    if(mutex_lock_interruptible(&(aesd_device.lock)))
-        return -ERESTARTSYS;
+    // if(mutex_lock_interruptible(&(aesd_device.lock)))
+    //     return -ERESTARTSYS;
 
     offsetEntry = aesd_circular_buffer_find_entry_offset_for_fpos(
                                                     &aesd_device.dev_cb_fifo,
@@ -94,7 +94,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
     //fpos should be updated
 
     out:
-        mutex_unlock(&(aesd_device.lock));
+        // mutex_unlock(&(aesd_device.lock));
         return retval;
 }
 
@@ -116,8 +116,8 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
 
     cb_fifo = &(aesd_device.dev_cb_fifo);
 
-    if(mutex_lock_interruptible(&(aesd_device.lock)))
-        return -ERESTARTSYS;
+    // if(mutex_lock_interruptible(&(aesd_device.lock)))
+    //     return -ERESTARTSYS;
 
     placeholder = kmalloc(sizeof(char)*count, GFP_KERNEL);
 
@@ -213,7 +213,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
     retval=entrySize;
     
     out:
-        mutex_unlock(&(aesd_device.lock));
+        // mutex_unlock(&(aesd_device.lock));
         return retval;
 }
 
@@ -259,7 +259,7 @@ int aesd_init_module(void)
     //Maybe do some other initialization here. Don't even
     //have to initialize cb fifo bc above statement does
     //what we need
-    mutex_init(&aesd_device.lock);
+    // mutex_init(&aesd_device.lock);
 
     result = aesd_setup_cdev(&aesd_device);
 

@@ -29,7 +29,7 @@
 
 struct aesd_dev
 {
-    struct mutex lock;
+//     struct mutex lock;
     struct aesd_circular_buffer dev_cb_fifo;
     char*  limboString;
     uint32_t limboLength;

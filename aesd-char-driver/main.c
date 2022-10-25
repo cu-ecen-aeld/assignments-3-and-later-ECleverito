@@ -213,7 +213,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
             aesd_device.limboLength = entrySize;
         }
     }
-    retval=entrySize;
+    retval=entrySize+1;
     
     out:
         mutex_unlock(&(aesd_device.lock));

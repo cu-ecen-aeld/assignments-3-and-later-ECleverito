@@ -55,7 +55,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
     struct aesd_buffer_entry *offsetEntry;
     size_t offsetEntry_ind;
 
-    uint32_t bytesLeft, decCount;
+    uint32_t bytesLeft, newCount;
 
     ssize_t retval = 0;
     
@@ -102,7 +102,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
 
     out:
         mutex_unlock(&(aesd_device.lock));
-        PDEBUG("Returning %d for read", count);
+        PDEBUG("Returning %zu for read", count);
         return retval;
 }
 

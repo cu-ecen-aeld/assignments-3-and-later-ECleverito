@@ -37,7 +37,7 @@ void SIGINT_handler(int SIG_val)
 
 }
 
-#if !USE_AESD_CHAR_DEVICE
+#ifndef USE_AESD_CHAR_DEVICE
 void alarm_handler(int signo)
 {
     int lockRet = pthread_mutex_lock(&mutex);
@@ -149,7 +149,7 @@ int main(int argc, char *argv[])
         }
     }
 
-#if !USE_AESD_CHAR_DEVICE
+#ifndef USE_AESD_CHAR_DEVICE
     //Timer must be set up after daemon has been created,
     //as child processes do not inherit timers
     if(setupTimer()!=0)
@@ -341,7 +341,7 @@ void* recvAndSendAndLog(void* socket_data_arg)
         //the peer for every packet received
         if(recvdByte=='\n')
         {
-#if !USE_AESD_CHAR_DEVICE
+#ifndef USE_AESD_CHAR_DEVICE
             //Set file pointer to 0
             if(lseek(outputFd, 0, SEEK_SET)==-1)
             {
@@ -459,7 +459,7 @@ int checkInput(int argc, char *argv[])
 
 }
 
-#if !USE_AESD_CHAR_DEVICE
+#ifndef USE_AESD_CHAR_DEVICE
 int setupTimer()
 {
     //Alarm signal-handling

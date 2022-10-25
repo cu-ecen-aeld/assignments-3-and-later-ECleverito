@@ -1,6 +1,6 @@
 #pragma once
 
-#define USE_AESD_CHAR_DEVICE 1
+#define USE_AESD_CHAR_DEVICE
 
 #include "./queue.h"
 #include <stdbool.h>
@@ -23,9 +23,9 @@
 #define BACKLOG     1
 #define BUFF_SIZE   256
 
-#if USE_AESD_CHAR_DEVICE
+#ifdef USE_AESD_CHAR_DEVICE
 const char OUTPUT_FILEPATH[] = "/dev/aesdchar";
-#elif
+#else
 const char OUTPUT_FILEPATH[] = "/var/tmp/aesdsocketdata";
 #endif
 const char SERVER_PORT[] = "9000";
@@ -65,7 +65,7 @@ void* recvAndSendAndLog(void* socket_data_arg);
  */
 int checkInput(int argc, char *argv[]);
 
-#if !USE_AESD_CHAR_DEVICE
+#ifdef USE_AESD_CHAR_DEVICE
 int setupTimer();
 #endif
 

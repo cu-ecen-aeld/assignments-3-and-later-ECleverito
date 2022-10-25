@@ -185,6 +185,8 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
                 }
                 aesd_circular_buffer_add_entry(cb_fifo, &newEntry);
 
+                PDEBUG("%zu bytes at %p in cbfifo",newEntry.size,newEntry.buffptr);
+
                 //Get device out of packet limbo
                 aesd_device.inLimbo = false;
                 aesd_device.limboLength = 0;

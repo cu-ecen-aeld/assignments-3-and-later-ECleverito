@@ -295,7 +295,7 @@ void* recvAndSendAndLog(void* socket_data_arg)
             ipv4Addr[0], ipv4Addr[1], ipv4Addr[2], ipv4Addr[3]);
 
     //Open output file to append to or create if it does not already exist
-    int outputFd = open(OUTPUT_FILEPATH, O_RDWR | O_CREAT | O_APPEND,\
+    int outputFd = open(OUTPUT_FILEPATH, O_RDWR | O_CREAT | O_TRUNC,\
                             S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 
     if(outputFd==-1)

@@ -195,7 +195,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
                 //Update limbo string
                 kfree(aesd_device.limboString);
                 aesd_device.limboString = newLimboString;
-                aesd_device.limboString += entrySize;  
+                aesd_device.limboLength += entrySize;  
             }
     }
     else

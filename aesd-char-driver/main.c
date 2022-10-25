@@ -71,6 +71,8 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
 
     if(!offsetEntry)
     {
+        PDEBUG("At cbfifo's end!");
+        retval = 0;
         goto out;
     }
 

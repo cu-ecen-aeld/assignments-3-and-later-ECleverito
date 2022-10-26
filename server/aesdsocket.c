@@ -37,6 +37,7 @@ void SIGINT_handler(int SIG_val)
 
 }
 
+#ifndef USE_AESD_CHAR_DEVICE
 void alarm_handler(int signo)
 {
     int lockRet = pthread_mutex_lock(&mutex);
@@ -98,6 +99,7 @@ void alarm_handler(int signo)
     return;
 
 }
+#endif
 
 int main(int argc, char *argv[])
 {
@@ -147,6 +149,7 @@ int main(int argc, char *argv[])
         }
     }
 
+#ifndef USE_AESD_CHAR_DEVICE
     //Timer must be set up after daemon has been created,
     //as child processes do not inherit timers
     if(setupTimer()!=0)
@@ -154,6 +157,7 @@ int main(int argc, char *argv[])
         fprintf(stderr,"Timer setup failed\n");
         return -1;
     }
+#endif
 
     SLIST_INIT(&head);
 
@@ -291,7 +295,7 @@ void* recvAndSendAndLog(void* socket_data_arg)
             ipv4Addr[0], ipv4Addr[1], ipv4Addr[2], ipv4Addr[3]);
 
     //Open output file to append to or create if it does not already exist
-    int outputFd = open(OUTPUT_FILEPATH, O_RDWR | O_CREAT | O_APPEND,\
+    int outputFd = open(OUTPUT_FILEPATH, O_RDWR | O_CREAT | O_TRUNC,\
                             S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 
     if(outputFd==-1)
@@ -337,6 +341,7 @@ void* recvAndSendAndLog(void* socket_data_arg)
         //the peer for every packet received
         if(recvdByte=='\n')
         {
+#ifndef USE_AESD_CHAR_DEVICE
             //Set file pointer to 0
             if(lseek(outputFd, 0, SEEK_SET)==-1)
             {
@@ -347,6 +352,7 @@ void* recvAndSendAndLog(void* socket_data_arg)
                     socket_data->threadCompleteFlag = true;
                     pthread_exit(socket_data);
             }
+#endif
             
             readRet=1;
             //Read until EOF
@@ -384,7 +390,7 @@ void* recvAndSendAndLog(void* socket_data_arg)
                 } while (sendRet<0);
 
             }
-
+            
             if(mutexLocked)
             {
                 lockRet = pthread_mutex_unlock(&mutex);
@@ -453,6 +459,7 @@ int checkInput(int argc, char *argv[])
 
 }
 
+#ifndef USE_AESD_CHAR_DEVICE
 int setupTimer()
 {
     //Alarm signal-handling
@@ -476,6 +483,7 @@ int setupTimer()
     return 0;
 
 }
+#endif
 
 int graceful_exit(int returnVal)
 {

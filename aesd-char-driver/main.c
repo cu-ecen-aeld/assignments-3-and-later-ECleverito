@@ -232,12 +232,61 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
         return retval;
 }
 
+loff_t aesd_llseek(struct file *filp, loff_t off, int whence)
+{
+	loff_t newpos;
+    struct aesd_buffer_entry *entryPtr = NULL;
+    struct aesd_circular_buffer *devBuffPtr = &aesd_device.dev_cb_fifo;
+    size_t entryPtrInd;
+
+    uint64_t devBuffSize;
+
+	switch(whence) {
+	  case 0: /* SEEK_SET */
+        entryPtr = aesd_circular_buffer_find_entry_offset_for_fpos(
+                    devBuffPtr, off, &entryPtrInd);
+        if(entryPtr)
+        {
+            newpos = off;
+        }
+		break;
+
+	  case 1: /* SEEK_CUR */
+        entryPtr = aesd_circular_buffer_find_entry_offset_for_fpos(
+                    devBuffPtr, filp->f_pos + off, &entryPtrInd);
+        if(entryPtr)
+        {
+            newpos = filp->f_pos + off;
+        }
+		break;
+
+	  case 2: /* SEEK_END */
+        bufferSize(devBuffPtr, &devBuffSize);
+
+        entryPtr = aesd_circular_buffer_find_entry_offset_for_fpos(
+                    devBuffPtr, devBuffSize + off, &entryPtrInd);
+
+        if(entryPtr)
+        {
+            newpos = devBuffSize + off;
+        }
+		break;
+
+	  default: /* can't happen */
+		return -EINVAL;
+	}
+	if (!entryPtr) return -EINVAL;
+	filp->f_pos = newpos;
+	return newpos;
+}
+
 struct file_operations aesd_fops = {
     .owner =    THIS_MODULE,
     .read =     aesd_read,
     .write =    aesd_write,
     .open =     aesd_open,
     .release =  aesd_release,
+    .llseek =   aesd_llseek
 };
 
 static int aesd_setup_cdev(struct aesd_dev *dev)

@@ -187,7 +187,6 @@ void bufferSize(struct aesd_circular_buffer *buffer, uint64_t *bufferSize)
     }
     else if(buffer->in_offs > buffer->out_offs)
     {
-        index = buffer->out_offs;
         for(index=buffer->out_offs;index<buffer->in_offs;index++)
         {
             entryPtr=&(buffer->entry[index]);
@@ -196,15 +195,13 @@ void bufferSize(struct aesd_circular_buffer *buffer, uint64_t *bufferSize)
     }
     else if(buffer->out_offs > buffer->in_offs)
     {
-        index = buffer->out_offs;
         for(index=buffer->out_offs;index<AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;index++)
         {
             entryPtr=&(buffer->entry[index]);
             (*bufferSize)+=entryPtr->size;
         }
 
-        index = 0;
-        for(index=buffer->out_offs;index<AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;index++)
+        for(index=0;index<buffer->in_offs;index++)
         {
             entryPtr=&(buffer->entry[index]);
             (*bufferSize)+=entryPtr->size;

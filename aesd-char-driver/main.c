@@ -21,10 +21,21 @@
 #include <asm/uaccess.h>
 #include <linux/slab.h>
 #include <linux/string.h>
+#include <linux/version.h>
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,0,0)
+#define access_ok_wrapper(type,arg,cmd) \
+	access_ok(type, arg, cmd)
+#else
+#define access_ok_wrapper(type,arg,cmd) \
+	access_ok(arg, cmd)
+#endif
 
 #include "aesdchar.h"
 int aesd_major =   0; // use dynamic major
 int aesd_minor =   0;
+
+#include "aesd_ioctl.h"
 
 MODULE_AUTHOR("Erich Clever");
 MODULE_LICENSE("Dual BSD/GPL");
@@ -278,6 +289,86 @@ loff_t aesd_llseek(struct file *filp, loff_t off, int whence)
 	if (!entryPtr) return -EINVAL;
 	filp->f_pos = newpos;
 	return newpos;
+}
+
+long aesd_ioctl(struct file *filp, unsigned int cmd, struct aesd_seekto seekParams)
+{
+    // int err = 0, tmp;
+	int retval = 0;
+    struct aesd_circular_buffer *devBuffPtr = &aesd_device.dev_cb_fifo;
+    loff_t newpos = 0;    
+    int index;
+    
+	/*
+	 * extract the type and number bitfields, and don't decode
+	 * wrong cmds: return ENOTTY (inappropriate ioctl) before access_ok()
+	 */
+	if (_IOC_TYPE(cmd) != AESD_IOC_MAGIC) return -ENOTTY;
+	if (_IOC_NR(cmd) > AESDCHAR_IOC_MAXNR) return -ENOTTY;
+
+    	/*
+	 * the direction is a bitmask, and VERIFY_WRITE catches R/W
+	 * transfers. `Type' is user-oriented, while
+	 * access_ok is kernel-oriented, so the concept of "read" and
+	 * "write" is reversed
+	 */
+	// if (_IOC_DIR(cmd) & _IOC_READ)
+	// 	err = !access_ok_wrapper(VERIFY_WRITE, (void __user *)seekParams, _IOC_SIZE(cmd));
+	// else if (_IOC_DIR(cmd) & _IOC_WRITE)
+	// 	err =  !access_ok_wrapper(VERIFY_READ, (void __user *)seekParams, _IOC_SIZE(cmd));
+	// if (err) return -EFAULT;
+
+	switch(cmd) {
+
+	  case AESDCHAR_IOCSEEKTO:
+		//Range-checking
+        if((seekParams.write_cmd > (bufferLength(devBuffPtr)-1)) || \
+            (seekParams.write_cmd_offset > (devBuffPtr->entry[seekParams.write_cmd].size - 1)))
+        {
+            return -EINVAL;
+        }
+        
+        if(devBuffPtr->out_offs<devBuffPtr->in_offs)
+        {
+            for(index=devBuffPtr->out_offs; index<devBuffPtr->in_offs; index++)
+            {
+                if((newpos+devBuffPtr->entry[index].size) > newpos+seekParams.write_cmd_offset)
+                {
+                    filp->f_pos = (newpos+seekParams.write_cmd_offset);
+                    return filp->f_pos;
+                }
+                newpos += devBuffPtr->entry[index].size;
+            }
+
+        }
+        else
+        {
+            for(index=devBuffPtr->out_offs; index<AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED; index++)
+            {
+                if((newpos+devBuffPtr->entry[index].size) > (newpos+seekParams.write_cmd_offset))
+                {
+                    filp->f_pos = (newpos+seekParams.write_cmd_offset);
+                    return filp->f_pos;
+                }
+                newpos += devBuffPtr->entry[index].size;
+            }
+            for(index=0; index<devBuffPtr->in_offs; index++)
+            {
+                if((newpos+devBuffPtr->entry[index].size) > (newpos+seekParams.write_cmd_offset))
+                {
+                    filp->f_pos = (newpos+seekParams.write_cmd_offset);
+                    return filp->f_pos;
+                }
+                newpos += devBuffPtr->entry[index].size;
+            }
+        }
+        return -EINVAL;
+
+        default:  /* redundant, as cmd was checked against MAXNR */
+            return -ENOTTY;
+        }
+    return retval;    
+
 }
 
 struct file_operations aesd_fops = {

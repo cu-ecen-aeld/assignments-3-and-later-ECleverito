@@ -30,6 +30,36 @@ const char OUTPUT_FILEPATH[] = "/var/tmp/aesdsocketdata";
 #endif
 const char SERVER_PORT[] = "9000";
 
+const char IOCSEEK_CMD_STR[] = "AESDCHAR_IOCSEEKTO:";
+
+typedef enum command_parser_state_s
+{
+    NOT_CMD,
+    HEADER,
+    ARG_X,
+    ARG_Y,
+} command_parser_state_t;
+
+#define AESD_IOC_MAGIC 0x16
+
+// Define a write command from the user point of view, use command number 1
+#define AESDCHAR_IOCSEEKTO _IOWR(AESD_IOC_MAGIC, 1, struct aesd_seekto)
+
+/**
+ * A structure to be passed by IOCTL from user space to kernel space, describing the type
+ * of seek performed on the aesdchar driver
+ */
+struct aesd_seekto {
+    /**
+     * The zero referenced write command to seek into
+     */
+    uint32_t write_cmd;
+    /**
+     * The zero referenced offset within the write
+     */
+    uint32_t write_cmd_offset;
+};
+
 typedef struct socket_data_s socket_data_t;
 
 struct socket_data_s{

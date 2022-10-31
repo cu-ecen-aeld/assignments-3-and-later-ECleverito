@@ -291,13 +291,15 @@ loff_t aesd_llseek(struct file *filp, loff_t off, int whence)
 	return newpos;
 }
 
-long aesd_ioctl(struct file *filp, unsigned int cmd, struct aesd_seekto seekParams)
+long aesd_ioctl(struct file *filp, unsigned int cmd, long unsigned int seekParams_usr_addr)
 {
     // int err = 0, tmp;
 	int retval = 0;
     struct aesd_circular_buffer *devBuffPtr = &aesd_device.dev_cb_fifo;
     loff_t newpos = 0;    
-    int index;
+    int index, currOffset=0;
+    struct aesd_seekto seekParams;
+    unsigned long retVal;
     
 	/*
 	 * extract the type and number bitfields, and don't decode
@@ -321,46 +323,83 @@ long aesd_ioctl(struct file *filp, unsigned int cmd, struct aesd_seekto seekPara
 	switch(cmd) {
 
 	  case AESDCHAR_IOCSEEKTO:
+        retVal = copy_from_user(&seekParams, (const void __user *)seekParams_usr_addr, sizeof(struct aesd_seekto));
+
+        if(retVal)
+        {
+            PDEBUG("Retval: %ld",retVal);
+            return -EFAULT;
+        }
 		//Range-checking
-        if((seekParams.write_cmd > (bufferLength(devBuffPtr)-1)) || \
-            (seekParams.write_cmd_offset > (devBuffPtr->entry[seekParams.write_cmd].size - 1)))
+        if(seekParams.write_cmd > (bufferLength(devBuffPtr)-1))
         {
             return -EINVAL;
         }
         
-        if(devBuffPtr->out_offs<devBuffPtr->in_offs)
+        //Wrapping search of cb fifo
+        if(devBuffPtr->full || (devBuffPtr->out_offs>devBuffPtr->in_offs))
         {
-            for(index=devBuffPtr->out_offs; index<devBuffPtr->in_offs; index++)
+            for(index=devBuffPtr->out_offs; index<AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED && \
+                                            currOffset<=seekParams.write_cmd; index++)
             {
-                if((newpos+devBuffPtr->entry[index].size) > newpos+seekParams.write_cmd_offset)
+                if(currOffset==seekParams.write_cmd)
                 {
-                    filp->f_pos = (newpos+seekParams.write_cmd_offset);
-                    return filp->f_pos;
+                    if(seekParams.write_cmd_offset>=devBuffPtr->entry[index].size)
+                    {
+                        return -EINVAL;
+                    }
+                    else
+                    {
+                        filp->f_pos = (newpos+seekParams.write_cmd_offset);
+                        return 0;
+                    }
                 }
                 newpos += devBuffPtr->entry[index].size;
+                currOffset++;
             }
-
+            for(index=0; index<=seekParams.write_cmd; index++)
+            {
+                if(currOffset==seekParams.write_cmd)
+                {
+                    if(seekParams.write_cmd_offset>=devBuffPtr->entry[index].size)
+                    {
+                        return -EINVAL;
+                    }
+                    else
+                    {
+                        filp->f_pos = (newpos+seekParams.write_cmd_offset);
+                        return 0;
+                    }
+                }
+                newpos += devBuffPtr->entry[index].size;
+                currOffset++;
+            }
+        }
+        else if(devBuffPtr->out_offs<devBuffPtr->in_offs)
+        {
+            for(index=devBuffPtr->out_offs; currOffset<=seekParams.write_cmd; index++)
+            {
+                if(currOffset==seekParams.write_cmd)
+                {
+                    if(seekParams.write_cmd_offset>=devBuffPtr->entry[index].size)
+                    {
+                        return -EINVAL;
+                    }
+                    else
+                    {
+                        filp->f_pos = (newpos+seekParams.write_cmd_offset);
+                        return 0;
+                    }
+                }
+                newpos += devBuffPtr->entry[index].size;
+                currOffset++;
+            }
         }
         else
         {
-            for(index=devBuffPtr->out_offs; index<AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED; index++)
-            {
-                if((newpos+devBuffPtr->entry[index].size) > (newpos+seekParams.write_cmd_offset))
-                {
-                    filp->f_pos = (newpos+seekParams.write_cmd_offset);
-                    return filp->f_pos;
-                }
-                newpos += devBuffPtr->entry[index].size;
-            }
-            for(index=0; index<devBuffPtr->in_offs; index++)
-            {
-                if((newpos+devBuffPtr->entry[index].size) > (newpos+seekParams.write_cmd_offset))
-                {
-                    filp->f_pos = (newpos+seekParams.write_cmd_offset);
-                    return filp->f_pos;
-                }
-                newpos += devBuffPtr->entry[index].size;
-            }
+            //Buffer empty
+            filp->f_pos = 0;
+            return 0;
         }
         return -EINVAL;
 
@@ -377,7 +416,8 @@ struct file_operations aesd_fops = {
     .write =    aesd_write,
     .open =     aesd_open,
     .release =  aesd_release,
-    .llseek =   aesd_llseek
+    .llseek =   aesd_llseek,
+    .unlocked_ioctl = aesd_ioctl,
 };
 
 static int aesd_setup_cdev(struct aesd_dev *dev)

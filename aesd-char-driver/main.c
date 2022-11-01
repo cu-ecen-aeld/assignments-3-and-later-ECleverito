@@ -23,17 +23,17 @@
 #include <linux/string.h>
 #include <linux/version.h>
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5,0,0)
-#define access_ok_wrapper(type,arg,cmd) \
-	access_ok(type, arg, cmd)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
+#define access_ok_wrapper(type, arg, cmd) \
+    access_ok(type, arg, cmd)
 #else
-#define access_ok_wrapper(type,arg,cmd) \
-	access_ok(arg, cmd)
+#define access_ok_wrapper(type, arg, cmd) \
+    access_ok(arg, cmd)
 #endif
 
 #include "aesdchar.h"
-int aesd_major =   0; // use dynamic major
-int aesd_minor =   0;
+int aesd_major = 0; // use dynamic major
+int aesd_minor = 0;
 
 #include "aesd_ioctl.h"
 
@@ -61,7 +61,7 @@ int aesd_release(struct inode *inode, struct file *filp)
 }
 
 ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
-                loff_t *f_pos)
+                  loff_t *f_pos)
 {
     struct aesd_buffer_entry *offsetEntry;
     size_t offsetEntry_ind;
@@ -69,25 +69,25 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
     uint32_t bytesLeft, newCount;
 
     ssize_t retval = 0;
-    
-    PDEBUG("read %zu bytes with offset %lld",count,*f_pos);
 
-    if(mutex_lock_interruptible(&(aesd_device.lock)))
+    PDEBUG("read %zu bytes with offset %lld", count, *f_pos);
+
+    if (mutex_lock_interruptible(&(aesd_device.lock)))
         return -ERESTARTSYS;
 
     offsetEntry = aesd_circular_buffer_find_entry_offset_for_fpos(
-                                                    &aesd_device.dev_cb_fifo,
-                                                    *f_pos,
-                                                    &offsetEntry_ind);
+        &aesd_device.dev_cb_fifo,
+        *f_pos,
+        &offsetEntry_ind);
 
-    if(!offsetEntry)
+    if (!offsetEntry)
     {
         PDEBUG("At cbfifo's end!");
         retval = 0;
         goto out;
     }
 
-    if(count>(offsetEntry->size - offsetEntry_ind))
+    if (count > (offsetEntry->size - offsetEntry_ind))
     {
         newCount = offsetEntry->size - offsetEntry_ind;
     }
@@ -96,71 +96,72 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
         newCount = count;
     }
 
-    bytesLeft=newCount;
+    bytesLeft = newCount;
 
-    PDEBUG("Copying %u bytes from %p",bytesLeft,
-                                &(offsetEntry->buffptr[offsetEntry_ind]));
+    PDEBUG("Copying %u bytes from %p", bytesLeft,
+           &(offsetEntry->buffptr[offsetEntry_ind]));
 
-    if(copy_to_user(buf, &(offsetEntry->buffptr[offsetEntry_ind]),bytesLeft))
+    if (copy_to_user(buf, &(offsetEntry->buffptr[offsetEntry_ind]), bytesLeft))
     {
         retval = -EFAULT;
         goto out;
-    }   
+    }
     *f_pos += bytesLeft;
     retval = bytesLeft;
-    //Read out count number of bytes to buf (can implement partial-read
-    //rule, which means that only the remainder of the identified entry
-    //will be returned)
-    //To do this, return value must be remainder bytes number and
-    //fpos should be updated
+    // Read out count number of bytes to buf (can implement partial-read
+    // rule, which means that only the remainder of the identified entry
+    // will be returned)
+    // To do this, return value must be remainder bytes number and
+    // fpos should be updated
 
-    out:
-        mutex_unlock(&(aesd_device.lock));
-        PDEBUG("Returning %zu bytes for read", count);
-        PDEBUG("Actual return value: %zu", retval);
-        return retval;
+out:
+    mutex_unlock(&(aesd_device.lock));
+    PDEBUG("Returning %zu bytes for read", count);
+    PDEBUG("Actual return value: %zu", retval);
+    return retval;
 }
 
 ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
-                loff_t *f_pos)
+                   loff_t *f_pos)
 {
-    char* newLimboString = NULL;
+    char *newLimboString = NULL;
     uint32_t entrySize = 0;
     uint32_t bytesLeft;
     bool nlFlag = false;
     struct aesd_circular_buffer *cb_fifo = NULL;
-    struct aesd_buffer_entry newEntry;    
+    struct aesd_buffer_entry newEntry;
 
     char *placeholder = NULL;
 
     ssize_t retval = -ENOMEM;
 
-    PDEBUG("write %zu bytes with offset %lld",count,*f_pos);
+    PDEBUG("write %zu bytes with offset %lld", count, *f_pos);
 
     cb_fifo = &(aesd_device.dev_cb_fifo);
 
-    if(mutex_lock_interruptible(&(aesd_device.lock)))
+    if (mutex_lock_interruptible(&(aesd_device.lock)))
         return -ERESTARTSYS;
 
-    placeholder = kmalloc(sizeof(char)*count, GFP_KERNEL);
+    placeholder = kmalloc(sizeof(char) * count, GFP_KERNEL);
 
-    if(!placeholder)
+    if (!placeholder)
     {
         retval = -ENOMEM;
         goto out;
     }
 
-    bytesLeft=count;
-    do{
-        bytesLeft = copy_from_user(placeholder+count-bytesLeft,
-                                            buf+count-bytesLeft,
-                                            bytesLeft);
-
-    } while(bytesLeft != 0);
-
-    while(entrySize < count && !nlFlag)
+    bytesLeft = count;
+    do
     {
-        if(placeholder[entrySize]=='\n')
+        bytesLeft = copy_from_user(placeholder + count - bytesLeft,
+                                   buf + count - bytesLeft,
+                                   bytesLeft);
+
+    } while (bytesLeft != 0);
+
+    while (entrySize < count && !nlFlag)
+    {
+        if (placeholder[entrySize] == '\n')
         {
             nlFlag = true;
         }
@@ -168,61 +169,60 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
         entrySize++;
     }
 
-    if(aesd_device.inLimbo)
+    if (aesd_device.inLimbo)
     {
-            newLimboString = kmalloc(sizeof(char)*(aesd_device.limboLength\
-                                                     + entrySize),
-                                        GFP_KERNEL);
+        newLimboString = kmalloc(sizeof(char) * (aesd_device.limboLength + entrySize),
+                                 GFP_KERNEL);
 
-            if(!newLimboString)
+        if (!newLimboString)
+        {
+            retval = -ENOMEM;
+            goto out;
+        }
+
+        memcpy(newLimboString, aesd_device.limboString, aesd_device.limboLength);
+        memcpy(newLimboString + aesd_device.limboLength,
+               placeholder,
+               entrySize);
+
+        kfree(placeholder);
+
+        if (nlFlag)
+        {
+            // Add new entry to CB
+            newEntry.buffptr = newLimboString;
+            newEntry.size = aesd_device.limboLength + entrySize;
+
+            if (cb_fifo->full)
             {
-                retval = -ENOMEM;
-                goto out;
+                kfree(cb_fifo->entry[cb_fifo->out_offs].buffptr);
             }
+            aesd_circular_buffer_add_entry(cb_fifo, &newEntry);
 
-            memcpy(newLimboString, aesd_device.limboString, aesd_device.limboLength);
-            memcpy(newLimboString + aesd_device.limboLength,
-                    placeholder,
-                    entrySize);
+            PDEBUG("%zu bytes at %p in cbfifo", newEntry.size, newEntry.buffptr);
 
-            kfree(placeholder);
-
-            if(nlFlag)
-            {
-                //Add new entry to CB
-                newEntry.buffptr = newLimboString;
-                newEntry.size = aesd_device.limboLength + entrySize;
-
-                if(cb_fifo->full)
-                {
-                    kfree(cb_fifo->entry[cb_fifo->out_offs].buffptr);
-                }
-                aesd_circular_buffer_add_entry(cb_fifo, &newEntry);
-
-                PDEBUG("%zu bytes at %p in cbfifo",newEntry.size,newEntry.buffptr);
-
-                //Get device out of packet limbo
-                aesd_device.inLimbo = false;
-                aesd_device.limboLength = 0;
-                kfree(aesd_device.limboString);
-            }
-            else
-            {
-                //Update limbo string
-                kfree(aesd_device.limboString);
-                aesd_device.limboString = newLimboString;
-                aesd_device.limboLength += entrySize;  
-            }
+            // Get device out of packet limbo
+            aesd_device.inLimbo = false;
+            aesd_device.limboLength = 0;
+            kfree(aesd_device.limboString);
+        }
+        else
+        {
+            // Update limbo string
+            kfree(aesd_device.limboString);
+            aesd_device.limboString = newLimboString;
+            aesd_device.limboLength += entrySize;
+        }
     }
     else
     {
-        if(nlFlag)
+        if (nlFlag)
         {
-            //Clean packet entry scenario
+            // Clean packet entry scenario
             newEntry.buffptr = placeholder;
             newEntry.size = entrySize;
 
-            if(cb_fifo->full)
+            if (cb_fifo->full)
             {
                 kfree(cb_fifo->entry[cb_fifo->out_offs].buffptr);
             }
@@ -230,144 +230,157 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
         }
         else
         {
-            //Enter limbo
+            // Enter limbo
             aesd_device.inLimbo = true;
             aesd_device.limboString = placeholder;
             aesd_device.limboLength = entrySize;
         }
     }
-    retval=entrySize;
-    
-    out:
-        mutex_unlock(&(aesd_device.lock));
-        return retval;
+    retval = entrySize;
+
+out:
+    mutex_unlock(&(aesd_device.lock));
+    return retval;
 }
 
 loff_t aesd_llseek(struct file *filp, loff_t off, int whence)
 {
-	loff_t newpos;
+    loff_t newpos;
     struct aesd_buffer_entry *entryPtr = NULL;
     struct aesd_circular_buffer *devBuffPtr = &aesd_device.dev_cb_fifo;
     size_t entryPtrInd;
 
     uint64_t devBuffSize;
 
-	switch(whence) {
-	  case 0: /* SEEK_SET */
+    switch (whence)
+    {
+    case 0: /* SEEK_SET */
         entryPtr = aesd_circular_buffer_find_entry_offset_for_fpos(
-                    devBuffPtr, off, &entryPtrInd);
-        if(entryPtr)
+            devBuffPtr, off, &entryPtrInd);
+        if (entryPtr)
         {
             newpos = off;
         }
-		break;
+        break;
 
-	  case 1: /* SEEK_CUR */
+    case 1: /* SEEK_CUR */
         entryPtr = aesd_circular_buffer_find_entry_offset_for_fpos(
-                    devBuffPtr, filp->f_pos + off, &entryPtrInd);
-        if(entryPtr)
+            devBuffPtr, filp->f_pos + off, &entryPtrInd);
+        if (entryPtr)
         {
             newpos = filp->f_pos + off;
         }
-		break;
+        break;
 
-	  case 2: /* SEEK_END */
+    case 2: /* SEEK_END */
         bufferSize(devBuffPtr, &devBuffSize);
 
         entryPtr = aesd_circular_buffer_find_entry_offset_for_fpos(
-                    devBuffPtr, devBuffSize + off, &entryPtrInd);
+            devBuffPtr, devBuffSize + off, &entryPtrInd);
 
-        if(entryPtr)
+        if (entryPtr)
         {
             newpos = devBuffSize + off;
         }
-		break;
+        break;
 
-	  default: /* can't happen */
-		return -EINVAL;
-	}
-	if (!entryPtr) return -EINVAL;
-	filp->f_pos = newpos;
-	return newpos;
+    default: /* can't happen */
+        return -EINVAL;
+    }
+    if (!entryPtr)
+        return -EINVAL;
+    filp->f_pos = newpos;
+    return newpos;
 }
 
 long aesd_ioctl(struct file *filp, unsigned int cmd, long unsigned int seekParams_usr_addr)
 {
     // int err = 0, tmp;
-	int retval = 0;
+    int retval = 0;
     struct aesd_circular_buffer *devBuffPtr = &aesd_device.dev_cb_fifo;
-    loff_t newpos = 0;    
-    int index, currOffset=0;
+    loff_t newpos = 0;
+    int index, currOffset = 0;
     struct aesd_seekto seekParams;
-    unsigned long retVal;
-    
-	/*
-	 * extract the type and number bitfields, and don't decode
-	 * wrong cmds: return ENOTTY (inappropriate ioctl) before access_ok()
-	 */
-	if (_IOC_TYPE(cmd) != AESD_IOC_MAGIC) return -ENOTTY;
-	if (_IOC_NR(cmd) > AESDCHAR_IOC_MAXNR) return -ENOTTY;
+    unsigned long retVal=0;
 
-    	/*
-	 * the direction is a bitmask, and VERIFY_WRITE catches R/W
-	 * transfers. `Type' is user-oriented, while
-	 * access_ok is kernel-oriented, so the concept of "read" and
-	 * "write" is reversed
-	 */
-	// if (_IOC_DIR(cmd) & _IOC_READ)
-	// 	err = !access_ok_wrapper(VERIFY_WRITE, (void __user *)seekParams, _IOC_SIZE(cmd));
-	// else if (_IOC_DIR(cmd) & _IOC_WRITE)
-	// 	err =  !access_ok_wrapper(VERIFY_READ, (void __user *)seekParams, _IOC_SIZE(cmd));
-	// if (err) return -EFAULT;
+    /*
+     * extract the type and number bitfields, and don't decode
+     * wrong cmds: return ENOTTY (inappropriate ioctl) before access_ok()
+     */
+    if (_IOC_TYPE(cmd) != AESD_IOC_MAGIC)
+        return -ENOTTY;
+    if (_IOC_NR(cmd) > AESDCHAR_IOC_MAXNR)
+        return -ENOTTY;
 
-	switch(cmd) {
+    /*
+     * the direction is a bitmask, and VERIFY_WRITE catches R/W
+     * transfers. `Type' is user-oriented, while
+     * access_ok is kernel-oriented, so the concept of "read" and
+     * "write" is reversed
+     */
+    // if (_IOC_DIR(cmd) & _IOC_READ)
+    // 	err = !access_ok_wrapper(VERIFY_WRITE, (void __user *)seekParams, _IOC_SIZE(cmd));
+    // else if (_IOC_DIR(cmd) & _IOC_WRITE)
+    // 	err =  !access_ok_wrapper(VERIFY_READ, (void __user *)seekParams, _IOC_SIZE(cmd));
+    // if (err) return -EFAULT;
 
-	  case AESDCHAR_IOCSEEKTO:
-        retVal = copy_from_user(&seekParams, (const void __user *)seekParams_usr_addr, sizeof(struct aesd_seekto));
+    switch (cmd)
+    {
+
+    case AESDCHAR_IOCSEEKTO:
+
+        retVal = copy_from_user(&seekParams,
+                                (void *)seekParams_usr_addr,
+                                sizeof(struct aesd_seekto));
 
         if(retVal)
         {
-            PDEBUG("Retval: %ld",retVal);
             return -EFAULT;
         }
-		//Range-checking
-        if(seekParams.write_cmd > (bufferLength(devBuffPtr)-1))
+
+        // seekParams = (struct aesd_seekto*)(seekParams_usr_addr);
+
+        PDEBUG("K-space ArgX: %u\r\nK-Space ArgY: %u",seekParams.write_cmd,seekParams.write_cmd_offset);
+
+        // Range-checking
+        if (seekParams.write_cmd > (bufferLength(devBuffPtr) - 1))
         {
             return -EINVAL;
         }
-        
-        //Wrapping search of cb fifo
-        if(devBuffPtr->full || (devBuffPtr->out_offs>devBuffPtr->in_offs))
+
+        // Wrapping search of cb fifo
+        if (devBuffPtr->full || (devBuffPtr->out_offs > devBuffPtr->in_offs))
         {
-            for(index=devBuffPtr->out_offs; index<AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED && \
-                                            currOffset<=seekParams.write_cmd; index++)
+            for (index = devBuffPtr->out_offs; index < AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED &&
+                                               currOffset <= seekParams.write_cmd;
+                 index++)
             {
-                if(currOffset==seekParams.write_cmd)
+                if (currOffset == seekParams.write_cmd)
                 {
-                    if(seekParams.write_cmd_offset>=devBuffPtr->entry[index].size)
+                    if (seekParams.write_cmd_offset >= devBuffPtr->entry[index].size)
                     {
                         return -EINVAL;
                     }
                     else
                     {
-                        filp->f_pos = (newpos+seekParams.write_cmd_offset);
+                        filp->f_pos = (newpos + seekParams.write_cmd_offset);
                         return 0;
                     }
                 }
                 newpos += devBuffPtr->entry[index].size;
                 currOffset++;
             }
-            for(index=0; index<=seekParams.write_cmd; index++)
+            for (index = 0; index <= seekParams.write_cmd; index++)
             {
-                if(currOffset==seekParams.write_cmd)
+                if (currOffset == seekParams.write_cmd)
                 {
-                    if(seekParams.write_cmd_offset>=devBuffPtr->entry[index].size)
+                    if (seekParams.write_cmd_offset >= devBuffPtr->entry[index].size)
                     {
                         return -EINVAL;
                     }
                     else
                     {
-                        filp->f_pos = (newpos+seekParams.write_cmd_offset);
+                        filp->f_pos = (newpos + seekParams.write_cmd_offset);
                         return 0;
                     }
                 }
@@ -375,19 +388,19 @@ long aesd_ioctl(struct file *filp, unsigned int cmd, long unsigned int seekParam
                 currOffset++;
             }
         }
-        else if(devBuffPtr->out_offs<devBuffPtr->in_offs)
+        else if (devBuffPtr->out_offs < devBuffPtr->in_offs)
         {
-            for(index=devBuffPtr->out_offs; currOffset<=seekParams.write_cmd; index++)
+            for (index = devBuffPtr->out_offs; currOffset <= seekParams.write_cmd; index++)
             {
-                if(currOffset==seekParams.write_cmd)
+                if (currOffset == seekParams.write_cmd)
                 {
-                    if(seekParams.write_cmd_offset>=devBuffPtr->entry[index].size)
+                    if (seekParams.write_cmd_offset >= devBuffPtr->entry[index].size)
                     {
                         return -EINVAL;
                     }
                     else
                     {
-                        filp->f_pos = (newpos+seekParams.write_cmd_offset);
+                        filp->f_pos = (newpos + seekParams.write_cmd_offset);
                         return 0;
                     }
                 }
@@ -397,26 +410,25 @@ long aesd_ioctl(struct file *filp, unsigned int cmd, long unsigned int seekParam
         }
         else
         {
-            //Buffer empty
+            // Buffer empty
             filp->f_pos = 0;
             return 0;
         }
         return -EINVAL;
 
-        default:  /* redundant, as cmd was checked against MAXNR */
-            return -ENOTTY;
-        }
-    return retval;    
-
+    default: /* redundant, as cmd was checked against MAXNR */
+        return -ENOTTY;
+    }
+    return retval;
 }
 
 struct file_operations aesd_fops = {
-    .owner =    THIS_MODULE,
-    .read =     aesd_read,
-    .write =    aesd_write,
-    .open =     aesd_open,
-    .release =  aesd_release,
-    .llseek =   aesd_llseek,
+    .owner = THIS_MODULE,
+    .read = aesd_read,
+    .write = aesd_write,
+    .open = aesd_open,
+    .release = aesd_release,
+    .llseek = aesd_llseek,
     .unlocked_ioctl = aesd_ioctl,
 };
 
@@ -427,42 +439,42 @@ static int aesd_setup_cdev(struct aesd_dev *dev)
     cdev_init(&dev->cdev, &aesd_fops);
     dev->cdev.owner = THIS_MODULE;
     dev->cdev.ops = &aesd_fops;
-    err = cdev_add (&dev->cdev, devno, 1);
-    if (err) {
+    err = cdev_add(&dev->cdev, devno, 1);
+    if (err)
+    {
         printk(KERN_ERR "Error %d adding aesd cdev", err);
     }
     return err;
 }
-
-
 
 int aesd_init_module(void)
 {
     dev_t dev = 0;
     int result;
     result = alloc_chrdev_region(&dev, aesd_minor, 1,
-            "aesdchar");
+                                 "aesdchar");
     aesd_major = MAJOR(dev);
-    if (result < 0) {
+    if (result < 0)
+    {
         printk(KERN_WARNING "Can't get major %d\n", aesd_major);
         return result;
     }
-    memset(&aesd_device,0,sizeof(struct aesd_dev));
+    memset(&aesd_device, 0, sizeof(struct aesd_dev));
 
     aesd_device.limboString = NULL;
 
-    //Maybe do some other initialization here. Don't even
-    //have to initialize cb fifo bc above statement does
-    //what we need
+    // Maybe do some other initialization here. Don't even
+    // have to initialize cb fifo bc above statement does
+    // what we need
     mutex_init(&aesd_device.lock);
 
     result = aesd_setup_cdev(&aesd_device);
 
-    if( result ) {
+    if (result)
+    {
         unregister_chrdev_region(dev, 1);
     }
     return result;
-
 }
 
 void aesd_cleanup_module(void)
@@ -474,8 +486,8 @@ void aesd_cleanup_module(void)
 
     cdev_del(&aesd_device.cdev);
 
-    //Delete semaphore needed?
-    if(aesd_device.inLimbo)
+    // Delete semaphore needed?
+    if (aesd_device.inLimbo)
     {
         kfree(aesd_device.limboString);
     }
@@ -487,8 +499,6 @@ void aesd_cleanup_module(void)
 
     unregister_chrdev_region(devno, 1);
 }
-
-
 
 module_init(aesd_init_module);
 module_exit(aesd_cleanup_module);

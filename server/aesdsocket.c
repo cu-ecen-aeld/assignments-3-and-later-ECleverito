@@ -317,8 +317,9 @@ void *recvAndSendAndLog(void *socket_data_arg)
     char argX[20];
     char argY[20];
     struct aesd_seekto aesd_seekto_params;
-    // char tempStr[sizeof(IOCSEEK_CMD_STR)/sizeof(IOCSEEK_CMD_STR[0])];
+    char tempStr[sizeof(IOCSEEK_CMD_STR)/sizeof(IOCSEEK_CMD_STR[0])];
     long ioctlRes;
+    int i;
 
     // Append each byte received to the output file
     while (recv(socket_data->connectedSock, &recvdByte, 1, 0) != 0)
@@ -343,15 +344,17 @@ void *recvAndSendAndLog(void *socket_data_arg)
         case HEADER:
             if (recvdByte != IOCSEEK_CMD_STR[commandStrInd])
             {
-                syslog(LOG_INFO,"Last character read: %c",recvdByte);
-                syslog(LOG_INFO,"Last character index: %d",commandStrInd);
+                syslog(LOG_INFO, "Last character read: %c", recvdByte);
+                syslog(LOG_INFO, "Last character index: %d", commandStrInd);
                 command_parser_state = NOT_CMD;
+                tempStr[commandStrInd] = recvdByte;
+                tempStr[commandStrInd + 1] = '\0';
             }
             else
             {
-                // tempStr[commandStrInd] = recvdByte;
+                tempStr[commandStrInd] = recvdByte;
                 commandStrInd++;
-                if (commandStrInd == (sizeof(IOCSEEK_CMD_STR) / sizeof(IOCSEEK_CMD_STR[0])-1))
+                if (commandStrInd == (sizeof(IOCSEEK_CMD_STR) / sizeof(IOCSEEK_CMD_STR[0]) - 1))
                 {
                     command_parser_state = ARG_X;
                     commandStrInd = 0;
@@ -368,7 +371,7 @@ void *recvAndSendAndLog(void *socket_data_arg)
             else
             {
                 argX[commandStrInd] = '\0';
-                syslog(LOG_INFO,"Arg X: %s",argX);
+                syslog(LOG_INFO, "Arg X: %s", argX);
                 command_parser_state = ARG_Y;
                 commandStrInd = 0;
             }
@@ -384,16 +387,29 @@ void *recvAndSendAndLog(void *socket_data_arg)
             {
                 // Add null-terminator to end of arg Y
                 argY[commandStrInd] = '\0';
-                syslog(LOG_INFO,"Arg Y: %s",argY);
+                syslog(LOG_INFO, "Arg Y: %s", argY);
 
                 // Form specific ioctl argument struct
                 aesd_seekto_params.write_cmd = atol(argX);
                 aesd_seekto_params.write_cmd_offset = atol(argY);
 
-                ioctlRes = ioctl(outputFd, AESDCHAR_IOCSEEKTO, aesd_seekto_params);
-                syslog(LOG_INFO, "ioctl result (f_pos): %ld",ioctlRes);
+                ioctlRes = ioctl(outputFd, AESDCHAR_IOCSEEKTO, &aesd_seekto_params);
+                syslog(LOG_INFO, "ioctl result (f_pos): %lu", ioctlRes);
                 command_parser_state = HEADER;
                 commandStrInd = 0;
+
+                if (mutexLocked)
+                {
+                    lockRet = pthread_mutex_unlock(&mutex);
+
+                    if (lockRet != 0)
+                    {
+                        perror("pthread_mutex_lock() error");
+                        socket_data->threadCompleteFlag = true;
+                        pthread_exit(socket_data);
+                    }
+                }
+
                 continue;
             }
             break;
@@ -404,6 +420,66 @@ void *recvAndSendAndLog(void *socket_data_arg)
 
         if (command_parser_state == NOT_CMD)
         {
+            for (i = 0; i <= commandStrInd; i++)
+            {
+                while (write(outputFd, &tempStr[i], 1) != 1)
+                    ;
+
+                if (tempStr[i] == '\n')
+                {
+                    readRet = 1;
+                    // Read until EOF
+                    while (readRet != 0)
+                    {
+                        do
+                        {
+                            readRet = read(outputFd, &retByte, 1);
+                            if (readRet == -1)
+                            {
+                                if (errno != EAGAIN)
+                                {
+                                    perror("read() error in returning socket"
+                                           "input to peer");
+                                    close(outputFd);
+                                    socket_data->threadCompleteFlag = true;
+                                    pthread_exit(socket_data);
+                                }
+                            }
+
+                        } while (readRet < 0);
+
+                        do
+                        {
+                            sendRet = send(socket_data->connectedSock, &retByte, readRet, 0);
+                            if (sendRet == -1)
+                            {
+                                perror("send() error in returning socket"
+                                       "input to peer");
+                                close(outputFd);
+                                socket_data->threadCompleteFlag = true;
+                                pthread_exit(socket_data);
+                            }
+                        } while (sendRet < 0);
+                    }
+
+                    if (mutexLocked)
+                    {
+                        lockRet = pthread_mutex_unlock(&mutex);
+
+                        if (lockRet != 0)
+                        {
+                            perror("pthread_mutex_lock() error");
+                            socket_data->threadCompleteFlag = true;
+                            pthread_exit(socket_data);
+                        }
+                    }
+
+                    command_parser_state = HEADER;
+                    commandStrInd = 0;
+                    continue;
+                }
+            }
+
             while (write(outputFd, &recvdByte, 1) != 1)
                 ;
 

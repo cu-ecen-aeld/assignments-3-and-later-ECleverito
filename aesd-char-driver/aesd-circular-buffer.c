@@ -16,7 +16,6 @@
 
 #include "aesd-circular-buffer.h"
 
-uint8_t bufferLength(struct aesd_circular_buffer *buffer);
 
 /**
  * @param buffer the buffer to search for corresponding offset.  Any necessary locking must be performed by caller.
@@ -31,14 +30,15 @@ uint8_t bufferLength(struct aesd_circular_buffer *buffer);
 struct aesd_buffer_entry *aesd_circular_buffer_find_entry_offset_for_fpos(struct aesd_circular_buffer *buffer,
             size_t char_offset, size_t *entry_offset_byte_rtn )
 {
-    if(buffer==NULL)
-        return NULL;
 
-    uint8_t i;
-    uint8_t byteCount=0;
+    uint64_t i;
+    uint64_t byteCount=0;
     struct aesd_buffer_entry *entrySearcher;
     bool entryFound=false;
     size_t char_offset_res;
+
+    if(buffer==NULL)
+        return NULL;
 
     for(i = buffer->out_offs; i<AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED; i++)
     {
@@ -150,7 +150,7 @@ void aesd_circular_buffer_init(struct aesd_circular_buffer *buffer)
     memset(buffer,0,sizeof(struct aesd_circular_buffer));
 }
 
-uint8_t bufferLength(struct aesd_circular_buffer *buffer)
+uint64_t bufferLength(struct aesd_circular_buffer *buffer)
 {
     if(buffer->full)
     {
@@ -168,4 +168,46 @@ uint8_t bufferLength(struct aesd_circular_buffer *buffer)
         //buffer empty
         return 0;
 
+}
+
+//Returns total number of bytes in buffer
+void bufferSize(struct aesd_circular_buffer *buffer, uint64_t *bufferSize)
+{
+    struct aesd_buffer_entry *entryPtr = NULL;
+    uint64_t index;
+    *bufferSize = 0;
+
+    if(buffer->full)
+    {
+        index = 0;
+        AESD_CIRCULAR_BUFFER_FOREACH(entryPtr,buffer,index)
+        {
+            (*bufferSize)+=entryPtr->size;
+        }
+    }
+    else if(buffer->in_offs > buffer->out_offs)
+    {
+        for(index=buffer->out_offs;index<buffer->in_offs;index++)
+        {
+            entryPtr=&(buffer->entry[index]);
+            (*bufferSize)+=entryPtr->size;
+        }
+    }
+    else if(buffer->out_offs > buffer->in_offs)
+    {
+        for(index=buffer->out_offs;index<AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;index++)
+        {
+            entryPtr=&(buffer->entry[index]);
+            (*bufferSize)+=entryPtr->size;
+        }
+
+        for(index=0;index<buffer->in_offs;index++)
+        {
+            entryPtr=&(buffer->entry[index]);
+            (*bufferSize)+=entryPtr->size;
+        }
+    }
+    else
+        //buffer empty
+        *bufferSize = 0;
 }
